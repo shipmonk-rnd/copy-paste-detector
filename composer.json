@@ -1,0 +1,79 @@
+{
+    "name": "shipmonk/copy-paste-detector",
+    "description": "AST-based structural code clone detector for PHP",
+    "license": "MIT",
+    "type": "project",
+    "keywords": [
+        "dev",
+        "code-clone",
+        "static-analysis",
+        "clone-detector",
+        "copy-paste-detector"
+    ],
+    "require": {
+        "php": "^8.1",
+        "nikic/php-parser": "^4.19 || ^5.0",
+        "symfony/console": "^5.4 || ^6.0 || ^7.0 || ^8.0"
+    },
+    "require-dev": {
+        "editorconfig-checker/editorconfig-checker": "^10.7.0",
+        "ergebnis/composer-normalize": "^2.19.0",
+        "phpstan/phpstan": "2.1.33",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^10.5.60",
+        "shipmonk/coding-standard": "^0.2.1",
+        "shipmonk/composer-dependency-analyser": "^1.8",
+        "shipmonk/dead-code-detector": "^0.14.1",
+        "shipmonk/name-collision-detector": "^2.1.1",
+        "shipmonk/phpstan-rules": "^4.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "CopyPasteDetector\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "CopyPasteDetector\\Tests\\": "tests/"
+        },
+        "classmap": [
+            "tests/fixtures/"
+        ]
+    },
+    "bin": [
+        "bin/copy-paste-detector"
+    ],
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": false,
+            "ergebnis/composer-normalize": true
+        },
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "check": [
+            "@check:composer",
+            "@check:ec",
+            "@check:cs",
+            "@check:types",
+            "@check:tests",
+            "@check:dependencies",
+            "@check:collisions",
+            "@check:self"
+        ],
+        "check:collisions": "detect-collisions src tests",
+        "check:composer": [
+            "composer normalize --dry-run --no-check-lock --no-update-lock",
+            "composer validate --strict"
+        ],
+        "check:cs": "phpcs",
+        "check:dependencies": "composer-dependency-analyser",
+        "check:ec": "ec src tests bin",
+        "check:self": "php bin/copy-paste-detector",
+        "check:tests": "phpunit",
+        "check:types": "phpstan analyse -vv --ansi",
+        "fix:cs": "phpcbf"
+    }
+}
