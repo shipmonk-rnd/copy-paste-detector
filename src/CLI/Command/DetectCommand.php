@@ -313,13 +313,6 @@ HELP,);
         $cacheNote = $this->buildOptionNote($usingDefaultCacheDir, $cliOverrideCacheDir, '--cache-dir');
         $stderr->writeln(sprintf('Cache: <fg=#aaaaaa>%s</>%s', $this->relativizePath($cacheDir, $cwd), $cacheNote));
 
-        if ($minNodeCount < 30) {
-            $stderr->writeln(sprintf(
-                '<fg=yellow>Warning: minNodeCount=%d is very low and may result in long processing time and many false positives.</>',
-                $minNodeCount,
-            ));
-        }
-
         $stderr->writeln('');
     }
 
