@@ -3,11 +3,15 @@
 namespace CopyPasteDetector\AST;
 
 use CopyPasteDetector\Hashing\SubtreeHasher;
+use LogicException;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
+use SplObjectStorage;
+use function is_array;
 
 /**
- * Visitor that collects all subtrees meeting the minimum node count threshold
+ * Visitor that collects all subtrees meeting the minimum node count threshold.
+ * Uses bottom-up counting for O(n) complexity instead of O(n²).
  */
 final class SubtreeVisitor extends NodeVisitorAbstract
 {
@@ -17,22 +21,64 @@ final class SubtreeVisitor extends NodeVisitorAbstract
      */
     private array $subtrees = [];
 
+    /**
+     * @var SplObjectStorage<Node, int>
+     */
+    private SplObjectStorage $nodeCounts;
+
     public function __construct(
         private readonly int $minNodeCount,
         private readonly string $filePath,
-        private readonly NodeCounter $nodeCounter,
         private readonly SubtreeHasher $hasher,
     )
     {
+        $this->nodeCounts = new SplObjectStorage();
     }
 
-    public function enterNode(Node $node): int|Node|null
+    /**
+     * @param array<Node> $nodes
+     * @return array<Node>|null
+     */
+    public function beforeTraverse(array $nodes): ?array
     {
-        // Count nodes in this subtree
-        $nodeCount = $this->nodeCounter->count($node);
+        $this->nodeCounts = new SplObjectStorage();
+        $this->subtrees = [];
+        return null;
+    }
+
+    /**
+     * @param array<Node> $nodes
+     * @return array<Node>|null
+     */
+    public function afterTraverse(array $nodes): ?array
+    {
+        $this->nodeCounts = new SplObjectStorage();
+        return null;
+    }
+
+    public function leaveNode(Node $node): int|Node|null
+    {
+        // Count this node + all children using bottom-up approach
+        $count = 1;
+
+        foreach ($node->getSubNodeNames() as $name) {
+            $subNode = $node->{$name}; // @phpstan-ignore property.dynamicName
+
+            if ($subNode instanceof Node) {
+                $count += $this->nodeCounts[$subNode] ?? throw new LogicException('Node without count: ' . $subNode::class);
+            } elseif (is_array($subNode)) {
+                foreach ($subNode as $child) {
+                    if ($child instanceof Node) {
+                        $count += $this->nodeCounts[$child] ?? throw new LogicException('Node without count: ' . $child::class);
+                    }
+                }
+            }
+        }
+
+        $this->nodeCounts[$node] = $count;
 
         // Only include subtrees that meet the minimum node count threshold
-        if ($nodeCount >= $this->minNodeCount) {
+        if ($count >= $this->minNodeCount) {
             $startLine = $node->getStartLine();
             $endLine = $node->getEndLine();
 
@@ -49,7 +95,7 @@ final class SubtreeVisitor extends NodeVisitorAbstract
                 $this->filePath,
                 $startLine,
                 $endLine,
-                $nodeCount,
+                $count,
                 $hash,
             );
         }

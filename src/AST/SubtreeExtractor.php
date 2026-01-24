@@ -12,13 +12,10 @@ use PhpParser\NodeTraverser;
 final class SubtreeExtractor
 {
 
-    private readonly NodeCounter $nodeCounter;
-
     public function __construct(
         private readonly SubtreeHasher $hasher,
     )
     {
-        $this->nodeCounter = new NodeCounter();
     }
 
     /**
@@ -35,7 +32,7 @@ final class SubtreeExtractor
         int $minNodeCount,
     ): array
     {
-        $visitor = new SubtreeVisitor($minNodeCount, $filePath, $this->nodeCounter, $this->hasher);
+        $visitor = new SubtreeVisitor($minNodeCount, $filePath, $this->hasher);
 
         $traverser = new NodeTraverser();
         $traverser->addVisitor($visitor);
