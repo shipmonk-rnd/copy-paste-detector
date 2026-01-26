@@ -14,7 +14,7 @@ composer require --dev shipmonk/copy-paste-detector
 ## Basic Usage
 
 ```bash
-php bin/copy-paste-detector src/
+vendor/bin/copy-paste-detector src/
 ```
 
 
