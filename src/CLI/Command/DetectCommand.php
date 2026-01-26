@@ -36,6 +36,7 @@ use function is_dir;
 use function is_file;
 use function is_string;
 use function pathinfo;
+use function realpath;
 use function sprintf;
 use function str_starts_with;
 use function strlen;
@@ -80,9 +81,7 @@ final class DetectCommand extends Command
             ->setHelp(<<<'HELP'
 The <info>detect</info> command analyzes PHP files for structural code clones.
 
-It uses subtree hashing (similar to CloneDR) to find exact structural duplicates.
-Variable names and literals are anonymized, enabling Type-2 clone detection
-(structurally identical code with different identifiers).
+It uses subtree hashing (similar to CloneDR) to find exact structural duplicates and Type-2 clone detection.
 
 <comment>Usage:</comment>
     <info>php bin/copy-paste-detector detect /path/to/code</info>
@@ -102,37 +101,41 @@ HELP,);
         OutputInterface $output,
     ): int
     {
+        return $this->executeDetection($input, $output); // @phpstan-ignore missingType.checkedException (ErrorException in throws would violate LSP, but is solved on Application level)
+    }
+
+    /**
+     * @throws ErrorException
+     */
+    private function executeDetection(
+        InputInterface $input,
+        OutputInterface $output,
+    ): int
+    {
         $stderr = $this->getStderr($output);
 
         $cwd = getcwd();
         if ($cwd === false) {
-            $stderr->writeln('<error>Error: Could not determine current working directory</error>');
-            return Command::FAILURE;
+            throw new ErrorException('Could not determine current working directory');
         }
 
-        $resolvedConfig = $this->loadConfiguration($input, $stderr, $cwd);
-        if ($resolvedConfig === null) {
-            return Command::FAILURE;
-        }
-
+        $resolvedConfig = $this->loadConfiguration($input, $cwd);
         $config = $resolvedConfig->getConfig();
         $this->displayConfigPath($resolvedConfig, $stderr, $cwd);
 
         [$cacheDir, $usingDefaultCacheDir, $cliOverrideCacheDir] = $this->resolveCacheDir($input, $config);
         [$minNodeCountOverride, $usingDefaultMinNodeCount, $cliOverrideMinNodeCount] = $this->resolveMinNodeCount($input, $config);
 
-        $pathsResult = $this->resolvePaths($input, $config, $stderr);
-        if ($pathsResult === null) {
-            return Command::FAILURE;
-        }
-        [$paths, $usingDefaultPaths, $overriddenConfigPaths] = $pathsResult;
+        [$paths, $usingDefaultPaths, $overriddenConfigPaths] = $this->resolvePaths($input, $config);
 
         $configuration = Configuration::fromConfig($config, $minNodeCountOverride);
 
-        $files = $this->collectPhpFilesFromPaths($paths);
+        $realExcludePaths = $this->resolveExcludePaths($config, $cwd);
+        $this->warnAboutIneffectiveExcludes($paths, $realExcludePaths, $cwd, $stderr);
+
+        $files = $this->collectPhpFilesFromPaths($paths, $realExcludePaths);
         if (count($files) === 0) {
-            $stderr->writeln('<error>Error: No PHP files found in specified paths</error>');
-            return Command::FAILURE;
+            throw new ErrorException('No PHP files found in specified paths');
         }
 
         $this->displayScanInfo(
@@ -141,6 +144,7 @@ HELP,);
             $paths,
             $usingDefaultPaths,
             $overriddenConfigPaths,
+            $realExcludePaths,
             $configuration->getMinNodeCount(),
             $usingDefaultMinNodeCount,
             $cliOverrideMinNodeCount,
@@ -162,11 +166,13 @@ HELP,);
             : $output;
     }
 
+    /**
+     * @throws ErrorException
+     */
     private function loadConfiguration(
         InputInterface $input,
-        OutputInterface $stderr,
         string $cwd,
-    ): ?ResolvedConfig
+    ): ResolvedConfig
     {
         $configPath = $input->getOption('config');
 
@@ -176,12 +182,7 @@ HELP,);
 
         $configResolver = new ConfigResolver($cwd);
 
-        try {
-            return $configResolver->resolveConfig($configPath);
-        } catch (ErrorException $e) {
-            $stderr->writeln("<error>Error loading configuration: {$e->getMessage()}</error>");
-            return null;
-        }
+        return $configResolver->resolveConfig($configPath);
     }
 
     private function displayConfigPath(
@@ -236,16 +237,87 @@ HELP,);
     }
 
     /**
-     * @return array{list<string>, bool, list<string>|null}|null [paths, usingDefault, overriddenConfigPaths] or null on error
+     * Resolve and normalize exclude paths to absolute paths
+     *
+     * @return list<string>
+     *
+     * @throws ErrorException
+     */
+    private function resolveExcludePaths(
+        Config $config,
+        string $cwd,
+    ): array
+    {
+        $realExcludePaths = [];
+
+        foreach ($config->getExcludePaths() as $excludePath) {
+            $originalPath = $excludePath;
+
+            if (!str_starts_with($excludePath, '/')) {
+                $excludePath = $cwd . '/' . $excludePath;
+            }
+
+            $resolved = realpath($excludePath);
+
+            if ($resolved === false) {
+                throw new ErrorException("Exclude path does not exist: {$originalPath}");
+            }
+
+            $realExcludePaths[] = $resolved;
+        }
+
+        return $realExcludePaths;
+    }
+
+    /**
+     * Warn if any exclude paths are not within any of the scanned paths
+     *
+     * @param list<string> $paths
+     * @param list<string> $realExcludePaths
+     *
+     * @throws ErrorException
+     */
+    private function warnAboutIneffectiveExcludes(
+        array $paths,
+        array $realExcludePaths,
+        string $cwd,
+        OutputInterface $stderr,
+    ): void
+    {
+        $realPaths = [];
+
+        foreach ($paths as $path) {
+            $realPaths[] = $this->resolveRealpath($path, "Path '$path' does not exist");
+        }
+
+        foreach ($realExcludePaths as $realExcludePath) {
+            $isWithinScanPaths = false;
+
+            foreach ($realPaths as $realPath) {
+                if ($realExcludePath === $realPath || str_starts_with($realExcludePath, $realPath . '/')) {
+                    $isWithinScanPaths = true;
+                    break;
+                }
+            }
+
+            if (!$isWithinScanPaths) {
+                $relativePath = $this->relativizePath($realExcludePath, $cwd);
+                $stderr->writeln("<comment>Warning: Exclude path {$relativePath} is not within any scanned path</comment>");
+            }
+        }
+    }
+
+    /**
+     * @return array{list<string>, bool, list<string>|null} [paths, usingDefault, overriddenConfigPaths]
+     *
+     * @throws ErrorException
      */
     private function resolvePaths(
         InputInterface $input,
         Config $config,
-        OutputInterface $stderr,
-    ): ?array
+    ): array
     {
         $cliPaths = $input->getArgument('paths');
-
         if (!is_array($cliPaths)) {
             throw new LogicException('Paths argument must be an array');
         }
@@ -271,14 +343,12 @@ HELP,);
         }
 
         if ($paths === []) {
-            $stderr->writeln('<error>Error: No paths specified. Provide paths as arguments or configure them in the config file.</error>');
-            return null;
+            throw new ErrorException('No paths specified. Provide paths as arguments or configure them in the config file.');
         }
 
         foreach ($paths as $path) {
             if (!file_exists($path)) {
-                $stderr->writeln("<error>Error: Path does not exist: {$path}</error>");
-                return null;
+                throw new ErrorException("Path does not exist: {$path}");
             }
         }
 
@@ -288,6 +358,7 @@ HELP,);
     /**
      * @param list<string> $paths
      * @param list<string>|null $overriddenConfigPaths
+     * @param list<string> $realExcludePaths
      */
     private function displayScanInfo(
         OutputInterface $stderr,
@@ -295,6 +366,7 @@ HELP,);
         array $paths,
         bool $usingDefaultPaths,
         ?array $overriddenConfigPaths,
+        array $realExcludePaths,
         int $minNodeCount,
         bool $usingDefaultMinNodeCount,
         bool $cliOverrideMinNodeCount,
@@ -306,6 +378,11 @@ HELP,);
         $relativePaths = array_map(fn (string $path) => $this->relativizePath($path, $cwd), $paths);
         $pathsNote = $this->buildOptionNote($usingDefaultPaths, $overriddenConfigPaths !== null, 'paths argument');
         $stderr->writeln(sprintf('Scanning: %s%s', implode(', ', array_map(static fn (string $p) => "<fg=#aaaaaa>{$p}</>", $relativePaths)), $pathsNote));
+
+        if ($realExcludePaths !== []) {
+            $relativeExcludePaths = array_map(fn (string $path) => $this->relativizePath($path, $cwd), $realExcludePaths);
+            $stderr->writeln(sprintf('Excluding: %s', implode(', ', array_map(static fn (string $p) => "<fg=#aaaaaa>{$p}</>", $relativeExcludePaths))));
+        }
 
         $limitNote = $this->buildOptionNote($usingDefaultMinNodeCount, $cliOverrideMinNodeCount, '-m');
         $stderr->writeln(sprintf('Limit: <fg=#aaaaaa>≥%d nodes</>%s', $minNodeCount, $limitNote));
@@ -372,19 +449,54 @@ HELP,);
      * Collect PHP files from multiple paths
      *
      * @param list<string> $paths
+     * @param list<string> $realExcludePaths
      * @return list<string>
+     *
+     * @throws ErrorException
      */
-    private function collectPhpFilesFromPaths(array $paths): array
+    private function collectPhpFilesFromPaths(
+        array $paths,
+        array $realExcludePaths,
+    ): array
     {
         $allFiles = [];
 
         foreach ($paths as $path) {
             foreach ($this->collectPhpFiles($path) as $file) {
-                $allFiles[$file] = true;
+                if (!$this->isExcluded($file, $realExcludePaths)) {
+                    $allFiles[$file] = true;
+                }
             }
         }
 
         return array_keys($allFiles);
+    }
+
+    /**
+     * Check if a file path should be excluded
+     *
+     * @param list<string> $realExcludePaths
+     *
+     * @throws ErrorException
+     */
+    private function isExcluded(
+        string $filePath,
+        array $realExcludePaths,
+    ): bool
+    {
+        $realFilePath = $this->resolveRealpath($filePath, "File path '$filePath' does not exist, should not happen");
+
+        foreach ($realExcludePaths as $realExcludePath) {
+            if ($realFilePath === $realExcludePath) {
+                return true;
+            }
+
+            if (str_starts_with($realFilePath, $realExcludePath . '/')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -449,6 +561,25 @@ HELP,);
         }
 
         return $path;
+    }
+
+    /**
+     * Resolve a path to its real path, throwing an exception if it doesn't exist
+     *
+     * @throws ErrorException
+     */
+    private function resolveRealpath(
+        string $path,
+        string $errorMessage,
+    ): string
+    {
+        $resolved = realpath($path);
+
+        if ($resolved === false) {
+            throw new ErrorException($errorMessage);
+        }
+
+        return $resolved;
     }
 
 }

@@ -20,6 +20,11 @@ final class Config
      */
     private array $paths = [];
 
+    /**
+     * @var list<string>
+     */
+    private array $excludePaths = [];
+
     private bool $anonymizeVariables = true;
     private bool $anonymizeLiterals = false;
     private bool $anonymizeNames = false;
@@ -73,6 +78,27 @@ final class Config
     public function addPath(string $path): self
     {
         $this->paths[] = $path;
+        return $this;
+    }
+
+    /**
+     * Set paths to exclude from analysis.
+     * Files matching these paths will be skipped.
+     *
+     * @param list<string> $paths
+     */
+    public function setExcludePaths(array $paths): self
+    {
+        $this->excludePaths = $paths;
+        return $this;
+    }
+
+    /**
+     * Add a path to exclude from analysis.
+     */
+    public function addExcludePath(string $path): self
+    {
+        $this->excludePaths[] = $path;
         return $this;
     }
 
@@ -132,6 +158,14 @@ final class Config
     public function getPaths(): array
     {
         return $this->paths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getExcludePaths(): array
+    {
+        return $this->excludePaths;
     }
 
     public function shouldAnonymizeVariables(): bool
