@@ -37,9 +37,9 @@ final class TextReporterTest extends TestCase
 
     public function testReportWithNoClones(): void
     {
-        $result = $this->reporter->report([]);
+        $result = $this->reporter->report([], 1.23);
 
-        self::assertSame("\n<fg=black;bg=green> No code clones detected. </>\n", $result);
+        self::assertSame("\n<fg=black;bg=green> No code clones detected, took 1.23s </>\n", $result);
     }
 
     public function testReportWithCloneGroups(): void
@@ -73,7 +73,7 @@ final class TextReporterTest extends TestCase
 
         self::assertNotEmpty($cloneGroups, 'Should detect clones for test');
 
-        $result = $this->reporter->report($cloneGroups);
+        $result = $this->reporter->report($cloneGroups, 1.23);
 
         // Verify report structure
         self::assertStringContainsString('Clone Group #1', $result);
@@ -81,6 +81,7 @@ final class TextReporterTest extends TestCase
         self::assertStringContainsString('instances', $result);
         self::assertStringContainsString('Total:', $result);
         self::assertStringContainsString('clone group(s) detected', $result);
+        self::assertStringContainsString('took 1.23s', $result);
 
         // Verify file references are included
         self::assertStringContainsString('file1.php', $result);
@@ -117,7 +118,7 @@ final class TextReporterTest extends TestCase
 
         self::assertNotEmpty($cloneGroups, 'Should detect clones for test');
 
-        $result = $this->reporter->report($cloneGroups);
+        $result = $this->reporter->report($cloneGroups, 1.23);
 
         // Report should include line number formatting (e.g., "  2 |")
         self::assertMatchesRegularExpression('/\s+\d+\s+\|/', $result);
@@ -157,13 +158,13 @@ final class TextReporterTest extends TestCase
         $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 5);
 
         if (count($cloneGroups) >= 2) {
-            $result = $this->reporter->report($cloneGroups);
+            $result = $this->reporter->report($cloneGroups, 1.23);
 
             self::assertStringContainsString('Clone Group #1', $result);
             self::assertStringContainsString('Clone Group #2', $result);
         } else {
             // If only one group detected, just verify basic formatting
-            $result = $this->reporter->report($cloneGroups);
+            $result = $this->reporter->report($cloneGroups, 1.23);
             self::assertStringContainsString('Clone Group #1', $result);
         }
     }
@@ -188,7 +189,7 @@ final class TextReporterTest extends TestCase
         $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 3);
 
         if ($cloneGroups !== []) {
-            $result = $reporter->report($cloneGroups);
+            $result = $reporter->report($cloneGroups, 1.23);
 
             // Should not contain ANSI escape codes
             self::assertDoesNotMatchRegularExpression('/\x1b\[/', $result);
@@ -216,7 +217,7 @@ final class TextReporterTest extends TestCase
         $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 10);
 
         if ($cloneGroups !== []) {
-            $result = $this->reporter->report($cloneGroups);
+            $result = $this->reporter->report($cloneGroups, 1.23);
 
             // Verify node count and instance count are shown
             self::assertMatchesRegularExpression('/\d+ nodes/', $result);

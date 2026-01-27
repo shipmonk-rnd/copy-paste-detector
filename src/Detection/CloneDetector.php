@@ -18,8 +18,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 use function array_merge;
 use function count;
 use function max;
-use function microtime;
-use function sprintf;
 use function usort;
 
 /**
@@ -51,19 +49,6 @@ final class CloneDetector
     }
 
     /**
-     * Log a message in verbose mode
-     */
-    private function logVerbose(string $message): void
-    {
-        if ($this->output !== null && $this->output->isVerbose()) {
-            $this->output->writeln(
-                sprintf('<comment>%s</comment>', $message),
-                OutputInterface::VERBOSITY_VERBOSE,
-            );
-        }
-    }
-
-    /**
      * Detect clones in a set of PHP files
      *
      * @param list<string> $filePaths Array of PHP file paths to analyze
@@ -80,20 +65,14 @@ final class CloneDetector
     ): array
     {
         $this->output = $output;
-        $startTime = microtime(true);
 
         // Parse files and extract subtrees (with caching)
         $allSubtrees = $this->parseAndExtractSubtrees($filePaths, $minNodeCount, $cache);
 
         // Build hash index and create clone groups
         $hashIndex = $this->buildHashIndex($allSubtrees);
-        $cloneGroups = $this->createCloneGroups($hashIndex);
 
-        // Log total time
-        $totalTime = microtime(true) - $startTime;
-        $this->logVerbose(sprintf('Total time: %.3fs', $totalTime));
-
-        return $cloneGroups;
+        return $this->createCloneGroups($hashIndex);
     }
 
     /**

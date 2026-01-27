@@ -43,12 +43,18 @@ final class TextReporter
      * Generate a report of detected clone groups
      *
      * @param list<CloneGroup> $cloneGroups Array of detected clone groups
+     * @param float $elapsedTime Elapsed time in seconds
      * @return string Formatted report text
      */
-    public function report(array $cloneGroups): string
+    public function report(
+        array $cloneGroups,
+        float $elapsedTime,
+    ): string
     {
+        $timeStr = sprintf('%.2fs', $elapsedTime);
+
         if (count($cloneGroups) === 0) {
-            return "\n<fg=black;bg=green> No code clones detected. </>\n";
+            return sprintf("\n<fg=black;bg=green> No code clones detected, took %s </>\n", $timeStr);
         }
 
         $output = [];
@@ -61,7 +67,7 @@ final class TextReporter
         }
 
         $output[] = str_repeat('=', 80);
-        $output[] = sprintf("Total: %d clone group(s) detected\n", count($cloneGroups));
+        $output[] = sprintf("Total: %d clone group(s) detected, took %s\n", count($cloneGroups), $timeStr);
 
         return implode("\n", $output);
     }
