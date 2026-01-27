@@ -3,7 +3,7 @@
 namespace ShipMonk\CopyPasteDetectorTests\Reporting;
 
 use PHPUnit\Framework\TestCase;
-use ShipMonk\CopyPasteDetector\Config\Configuration;
+use ShipMonk\CopyPasteDetector\Config\Config;
 use ShipMonk\CopyPasteDetector\Detection\CloneDetector;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
 use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
@@ -244,8 +244,8 @@ final class TextReporterTest extends TestCase
         int $minNodeCount,
     ): array
     {
-        $configuration = new Configuration(Configuration::DEFAULT_MIN_NODE_COUNT, true, false, false, false);
-        $detector = new CloneDetector($configuration);
+        $config = new Config();
+        $detector = new CloneDetector($config);
         return $detector->detect($files, $minNodeCount, null, null);
     }
 

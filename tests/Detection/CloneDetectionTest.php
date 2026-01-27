@@ -3,7 +3,7 @@
 namespace ShipMonk\CopyPasteDetectorTests\Detection;
 
 use PHPUnit\Framework\TestCase;
-use ShipMonk\CopyPasteDetector\Config\Configuration;
+use ShipMonk\CopyPasteDetector\Config\Config;
 use ShipMonk\CopyPasteDetector\Detection\CloneDetector;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
 use function file_put_contents;
@@ -21,13 +21,13 @@ final class CloneDetectionTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->detector = new CloneDetector($this->createConfiguration());
+        $this->detector = new CloneDetector($this->createConfig());
         $this->fixturesPath = __DIR__ . '/../_fixtures/sample_code';
     }
 
-    private function createConfiguration(): Configuration
+    private function createConfig(): Config
     {
-        return new Configuration(Configuration::DEFAULT_MIN_NODE_COUNT, true, false, false, false);
+        return new Config();
     }
 
     /**

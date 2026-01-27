@@ -8,7 +8,6 @@ use RecursiveIteratorIterator;
 use ShipMonk\CopyPasteDetector\Cache\SubtreeCache;
 use ShipMonk\CopyPasteDetector\Config\Config;
 use ShipMonk\CopyPasteDetector\Config\ConfigResolver;
-use ShipMonk\CopyPasteDetector\Config\Configuration;
 use ShipMonk\CopyPasteDetector\Config\ResolvedConfig;
 use ShipMonk\CopyPasteDetector\Detection\CloneDetector;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
@@ -129,7 +128,7 @@ HELP,);
 
         [$paths, $usingDefaultPaths, $overriddenConfigPaths] = $this->resolvePaths($input, $config);
 
-        $configuration = Configuration::fromConfig($config, $minNodeCountOverride);
+        $minNodeCount = $config->getResolvedMinNodeCount($minNodeCountOverride);
 
         $realExcludePaths = $this->resolveExcludePaths($config, $cwd);
         $this->warnAboutIneffectiveExcludes($paths, $realExcludePaths, $cwd, $stderr);
@@ -146,7 +145,7 @@ HELP,);
             $usingDefaultPaths,
             $overriddenConfigPaths,
             $realExcludePaths,
-            $configuration->getMinNodeCount(),
+            $minNodeCount,
             $usingDefaultMinNodeCount,
             $cliOverrideMinNodeCount,
             $cacheDir,
@@ -155,7 +154,7 @@ HELP,);
         );
 
         $startTime = microtime(true);
-        $cloneGroups = $this->detectClones($files, $configuration, $cacheDir, $stderr);
+        $cloneGroups = $this->detectClones($files, $config, $minNodeCount, $cacheDir, $stderr);
         $elapsedTime = microtime(true) - $startTime;
 
         $this->outputReport($cloneGroups, $elapsedTime, $output);
@@ -420,17 +419,18 @@ HELP,);
      */
     private function detectClones(
         array $files,
-        Configuration $configuration,
+        Config $config,
+        int $minNodeCount,
         string $cacheDir,
         OutputInterface $stderr,
     ): array
     {
         $cache = new SubtreeCache($cacheDir);
-        $detector = new CloneDetector($configuration);
+        $detector = new CloneDetector($config);
 
         return $detector->detect(
             $files,
-            $configuration->getMinNodeCount(),
+            $minNodeCount,
             $stderr,
             $cache,
         );

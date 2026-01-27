@@ -7,7 +7,7 @@ use ShipMonk\CopyPasteDetector\AST\Parser;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
 use ShipMonk\CopyPasteDetector\AST\SubtreeExtractor;
 use ShipMonk\CopyPasteDetector\Cache\SubtreeCache;
-use ShipMonk\CopyPasteDetector\Config\Configuration;
+use ShipMonk\CopyPasteDetector\Config\Config;
 use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 use ShipMonk\CopyPasteDetector\Hashing\AstNormalizer;
 use ShipMonk\CopyPasteDetector\Hashing\HashIndex;
@@ -35,14 +35,14 @@ final class CloneDetector
     private readonly SubtreeExtractor $subtreeExtractor;
     private ?OutputInterface $output = null;
 
-    public function __construct(Configuration $configuration)
+    public function __construct(Config $config)
     {
         $this->parser = new Parser();
         $normalizer = new AstNormalizer(
-            $configuration->shouldAnonymizeVariables(),
-            $configuration->shouldAnonymizeLiterals(),
-            $configuration->shouldAnonymizeNames(),
-            $configuration->shouldAnonymizeIdentifiers(),
+            $config->shouldAnonymizeVariables(),
+            $config->shouldAnonymizeLiterals(),
+            $config->shouldAnonymizeNames(),
+            $config->shouldAnonymizeIdentifiers(),
         );
         $this->subtreeExtractor = new SubtreeExtractor(new SubtreeHasher($normalizer));
     }
