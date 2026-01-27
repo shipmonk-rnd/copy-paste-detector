@@ -177,13 +177,11 @@ final class SyntaxHighlighter
         }
 
         $result = '';
-        $prevToken = null;
 
         foreach ($tokens as $i => $token) {
             if (is_string($token)) {
                 // Simple token (single character like {, }, ;)
                 $result .= $token;
-                $prevToken = null;
                 continue;
             }
 
@@ -195,15 +193,13 @@ final class SyntaxHighlighter
             }
 
             // Get color for this token
-            $color = $this->getTokenColor($tokenType, $tokenText, $prevToken, $tokens, $i);
+            $color = $this->getTokenColor($tokenType, $tokenText, $tokens, $i);
 
             if ($color !== null) {
                 $result .= $color . $tokenText . self::COLOR_RESET;
             } else {
                 $result .= $tokenText;
             }
-
-            $prevToken = $tokenType;
         }
 
         return $result;
@@ -217,7 +213,6 @@ final class SyntaxHighlighter
     private function getTokenColor(
         int $tokenType,
         string $tokenText,
-        ?int $prevToken,
         array $tokens,
         int $index,
     ): ?string
@@ -230,7 +225,7 @@ final class SyntaxHighlighter
         // Special handling for T_STRING (could be type hint, class name, function name, etc.)
         if ($tokenType === T_STRING) {
             // Check if it's a type hint
-            if ($this->isTypeHint($tokenText, $prevToken, $tokens, $index)) {
+            if ($this->isTypeHint($tokenText, $tokens, $index)) {
                 return self::COLOR_TYPE;
             }
         }
@@ -245,7 +240,6 @@ final class SyntaxHighlighter
      */
     private function isTypeHint(
         string $text,
-        ?int $prevToken,
         array $tokens,
         int $index,
     ): bool
