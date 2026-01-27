@@ -197,9 +197,7 @@ final class CloneDetector
         $cloneGroups = [];
 
         foreach ($hashGroups as $subtrees) {
-            if (count($subtrees) >= 2) {
-                $cloneGroups[] = new CloneGroup($subtrees);
-            }
+            $cloneGroups[] = new CloneGroup($subtrees);
         }
 
         $this->sortCloneGroups($cloneGroups);
