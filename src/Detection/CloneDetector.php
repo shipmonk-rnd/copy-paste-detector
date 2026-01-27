@@ -1,18 +1,18 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Detection;
+namespace ShipMonk\CopyPasteDetector\Detection;
 
-use CopyPasteDetector\AST\Parser;
-use CopyPasteDetector\AST\Subtree;
-use CopyPasteDetector\AST\SubtreeExtractor;
-use CopyPasteDetector\Cache\SubtreeCache;
-use CopyPasteDetector\Config\Configuration;
-use CopyPasteDetector\Exception\ErrorException;
-use CopyPasteDetector\Hashing\AstNormalizer;
-use CopyPasteDetector\Hashing\HashIndex;
-use CopyPasteDetector\Hashing\SubtreeHasher;
 use LogicException;
 use PhpParser\Node\Stmt;
+use ShipMonk\CopyPasteDetector\AST\Parser;
+use ShipMonk\CopyPasteDetector\AST\Subtree;
+use ShipMonk\CopyPasteDetector\AST\SubtreeExtractor;
+use ShipMonk\CopyPasteDetector\Cache\SubtreeCache;
+use ShipMonk\CopyPasteDetector\Config\Configuration;
+use ShipMonk\CopyPasteDetector\Exception\ErrorException;
+use ShipMonk\CopyPasteDetector\Hashing\AstNormalizer;
+use ShipMonk\CopyPasteDetector\Hashing\HashIndex;
+use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Output\OutputInterface;
 use function array_merge;

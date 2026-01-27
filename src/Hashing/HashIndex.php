@@ -1,8 +1,8 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Hashing;
+namespace ShipMonk\CopyPasteDetector\Hashing;
 
-use CopyPasteDetector\AST\Subtree;
+use ShipMonk\CopyPasteDetector\AST\Subtree;
 use function array_filter;
 use function count;
 

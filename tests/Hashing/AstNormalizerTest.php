@@ -1,12 +1,12 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests\Hashing;
+namespace ShipMonk\CopyPasteDetectorTests\Hashing;
 
-use CopyPasteDetector\AST\Parser;
-use CopyPasteDetector\Hashing\AstNormalizer;
-use CopyPasteDetector\Hashing\SubtreeHasher;
 use PhpParser\PrettyPrinter\Standard;
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\AST\Parser;
+use ShipMonk\CopyPasteDetector\Hashing\AstNormalizer;
+use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
 
 final class AstNormalizerTest extends TestCase
 {

@@ -1,9 +1,9 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests\Reporting;
+namespace ShipMonk\CopyPasteDetectorTests\Reporting;
 
-use CopyPasteDetector\Reporting\SyntaxHighlighter;
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
 
 final class SyntaxHighlighterTest extends TestCase
 {

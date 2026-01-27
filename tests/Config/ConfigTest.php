@@ -1,10 +1,10 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests\Config;
+namespace ShipMonk\CopyPasteDetectorTests\Config;
 
-use CopyPasteDetector\Config\Config;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\Config\Config;
 
 final class ConfigTest extends TestCase
 {

@@ -1,14 +1,14 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests\Cache;
+namespace ShipMonk\CopyPasteDetectorTests\Cache;
 
-use CopyPasteDetector\AST\Parser;
-use CopyPasteDetector\AST\SubtreeExtractor;
-use CopyPasteDetector\Cache\SubtreeCache;
-use CopyPasteDetector\Hashing\AstNormalizer;
-use CopyPasteDetector\Hashing\SubtreeHasher;
-use CopyPasteDetector\Tests\Helpers\TestDirectoryHelper;
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\AST\Parser;
+use ShipMonk\CopyPasteDetector\AST\SubtreeExtractor;
+use ShipMonk\CopyPasteDetector\Cache\SubtreeCache;
+use ShipMonk\CopyPasteDetector\Hashing\AstNormalizer;
+use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
+use ShipMonk\CopyPasteDetectorTests\Helpers\TestDirectoryHelper;
 use function count;
 use function file_put_contents;
 use function mkdir;

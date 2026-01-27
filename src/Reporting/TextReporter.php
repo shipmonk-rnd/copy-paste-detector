@@ -1,9 +1,9 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Reporting;
+namespace ShipMonk\CopyPasteDetector\Reporting;
 
-use CopyPasteDetector\Detection\CloneGroup;
 use LogicException;
+use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
 use function array_slice;
 use function count;
 use function explode;

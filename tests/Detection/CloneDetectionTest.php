@@ -1,11 +1,11 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests\Detection;
+namespace ShipMonk\CopyPasteDetectorTests\Detection;
 
-use CopyPasteDetector\Config\Configuration;
-use CopyPasteDetector\Detection\CloneDetector;
-use CopyPasteDetector\Detection\CloneGroup;
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\Config\Configuration;
+use ShipMonk\CopyPasteDetector\Detection\CloneDetector;
+use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
 use function file_put_contents;
 use function mkdir;
 use function rmdir;

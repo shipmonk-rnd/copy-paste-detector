@@ -1,10 +1,10 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Cache;
+namespace ShipMonk\CopyPasteDetector\Cache;
 
-use CopyPasteDetector\AST\Subtree;
 use JsonException;
 use LogicException;
+use ShipMonk\CopyPasteDetector\AST\Subtree;
 use function array_map;
 use function file_exists;
 use function file_get_contents;

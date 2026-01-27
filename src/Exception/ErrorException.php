@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Exception;
+namespace ShipMonk\CopyPasteDetector\Exception;
 
 use RuntimeException;
 use Throwable;

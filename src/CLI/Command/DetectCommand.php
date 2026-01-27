@@ -1,20 +1,20 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\CLI\Command;
+namespace ShipMonk\CopyPasteDetector\CLI\Command;
 
-use CopyPasteDetector\Cache\SubtreeCache;
-use CopyPasteDetector\Config\Config;
-use CopyPasteDetector\Config\ConfigResolver;
-use CopyPasteDetector\Config\Configuration;
-use CopyPasteDetector\Config\ResolvedConfig;
-use CopyPasteDetector\Detection\CloneDetector;
-use CopyPasteDetector\Detection\CloneGroup;
-use CopyPasteDetector\Exception\ErrorException;
-use CopyPasteDetector\Reporting\SyntaxHighlighter;
-use CopyPasteDetector\Reporting\TextReporter;
 use LogicException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use ShipMonk\CopyPasteDetector\Cache\SubtreeCache;
+use ShipMonk\CopyPasteDetector\Config\Config;
+use ShipMonk\CopyPasteDetector\Config\ConfigResolver;
+use ShipMonk\CopyPasteDetector\Config\Configuration;
+use ShipMonk\CopyPasteDetector\Config\ResolvedConfig;
+use ShipMonk\CopyPasteDetector\Detection\CloneDetector;
+use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
+use ShipMonk\CopyPasteDetector\Exception\ErrorException;
+use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
+use ShipMonk\CopyPasteDetector\Reporting\TextReporter;
 use SplFileInfo;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;

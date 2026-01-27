@@ -1,12 +1,12 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests\AST;
+namespace ShipMonk\CopyPasteDetectorTests\AST;
 
-use CopyPasteDetector\AST\NodeCounter;
-use CopyPasteDetector\AST\Parser;
-use CopyPasteDetector\Exception\ErrorException;
 use LogicException;
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\AST\NodeCounter;
+use ShipMonk\CopyPasteDetector\AST\Parser;
+use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 use function array_key_exists;
 
 final class NodeCounterTest extends TestCase

@@ -1,12 +1,12 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\AST;
+namespace ShipMonk\CopyPasteDetector\AST;
 
-use CopyPasteDetector\Exception\ErrorException;
 use PhpParser\Error as ParserError;
 use PhpParser\Node\Stmt;
 use PhpParser\Parser as PhpParser;
 use PhpParser\ParserFactory;
+use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 use function array_values;
 use function file_exists;
 use function file_get_contents;

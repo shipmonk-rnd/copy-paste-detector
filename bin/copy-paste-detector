@@ -27,5 +27,5 @@ if (!$autoloaderFound) {
 }
 
 // Run application
-$application = new CopyPasteDetector\CLI\Application();
+$application = new ShipMonk\CopyPasteDetector\CLI\Application();
 $application->run();

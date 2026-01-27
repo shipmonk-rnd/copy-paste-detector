@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-use CopyPasteDetector\Config\Config;
+use ShipMonk\CopyPasteDetector\Config\Config;
 
 $config = new Config();
 $config->setPaths(['src', 'tests']);

@@ -1,10 +1,10 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Detection;
+namespace ShipMonk\CopyPasteDetector\Detection;
 
-use CopyPasteDetector\AST\Subtree;
 use InvalidArgumentException;
 use LogicException;
+use ShipMonk\CopyPasteDetector\AST\Subtree;
 use function array_key_exists;
 use function count;
 

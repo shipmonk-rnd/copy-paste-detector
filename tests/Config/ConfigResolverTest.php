@@ -1,11 +1,11 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests\Config;
+namespace ShipMonk\CopyPasteDetectorTests\Config;
 
-use CopyPasteDetector\Config\ConfigResolver;
-use CopyPasteDetector\Exception\ErrorException;
-use CopyPasteDetector\Tests\Helpers\TestDirectoryHelper;
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\Config\ConfigResolver;
+use ShipMonk\CopyPasteDetector\Exception\ErrorException;
+use ShipMonk\CopyPasteDetectorTests\Helpers\TestDirectoryHelper;
 use function file_put_contents;
 use function mkdir;
 use function sys_get_temp_dir;
@@ -44,7 +44,7 @@ final class ConfigResolverTest extends TestCase
     {
         $configFile = $this->tempDir . '/custom-config.php';
         file_put_contents($configFile, '<?php
-            use CopyPasteDetector\Config\Config;
+            use ShipMonk\CopyPasteDetector\Config\Config;
             return (new Config())
                 ->setMinNodeCount(50)
                 ->addPath("src")
@@ -67,7 +67,7 @@ final class ConfigResolverTest extends TestCase
     {
         $configFile = $this->tempDir . '/copy-paste-detector.php';
         file_put_contents($configFile, '<?php
-            use CopyPasteDetector\Config\Config;
+            use ShipMonk\CopyPasteDetector\Config\Config;
             return (new Config())
                 ->setMinNodeCount(100)
                 ->setCacheDir("/tmp/custom-cache");

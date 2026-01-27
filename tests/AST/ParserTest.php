@@ -1,10 +1,10 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests\AST;
+namespace ShipMonk\CopyPasteDetectorTests\AST;
 
-use CopyPasteDetector\AST\Parser;
-use CopyPasteDetector\Exception\ErrorException;
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\AST\Parser;
+use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 
 final class ParserTest extends TestCase
 {

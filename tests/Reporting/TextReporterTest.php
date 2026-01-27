@@ -1,14 +1,14 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests\Reporting;
+namespace ShipMonk\CopyPasteDetectorTests\Reporting;
 
-use CopyPasteDetector\Config\Configuration;
-use CopyPasteDetector\Detection\CloneDetector;
-use CopyPasteDetector\Detection\CloneGroup;
-use CopyPasteDetector\Reporting\SyntaxHighlighter;
-use CopyPasteDetector\Reporting\TextReporter;
-use CopyPasteDetector\Tests\Helpers\TestDirectoryHelper;
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\Config\Configuration;
+use ShipMonk\CopyPasteDetector\Detection\CloneDetector;
+use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
+use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
+use ShipMonk\CopyPasteDetector\Reporting\TextReporter;
+use ShipMonk\CopyPasteDetectorTests\Helpers\TestDirectoryHelper;
 use function count;
 use function file_put_contents;
 use function mkdir;

@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Reporting;
+namespace ShipMonk\CopyPasteDetector\Reporting;
 
 use LogicException;
 use function array_key_exists;

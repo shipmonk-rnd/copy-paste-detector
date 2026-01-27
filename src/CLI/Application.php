@@ -1,10 +1,10 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\CLI;
+namespace ShipMonk\CopyPasteDetector\CLI;
 
 use Composer\InstalledVersions;
-use CopyPasteDetector\CLI\Command\DetectCommand;
-use CopyPasteDetector\Exception\ErrorException;
+use ShipMonk\CopyPasteDetector\CLI\Command\DetectCommand;
+use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 use Symfony\Component\Console\Application as BaseApplication;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;

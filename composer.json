@@ -30,12 +30,12 @@
     },
     "autoload": {
         "psr-4": {
-            "CopyPasteDetector\\": "src/"
+            "ShipMonk\\CopyPasteDetector\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "CopyPasteDetector\\Tests\\": "tests/"
+            "ShipMonk\\CopyPasteDetectorTests\\": "tests/"
         },
         "classmap": [
             "tests/_fixtures/"

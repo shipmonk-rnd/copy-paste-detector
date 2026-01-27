@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Config;
+namespace ShipMonk\CopyPasteDetector\Config;
 
 use InvalidArgumentException;
 

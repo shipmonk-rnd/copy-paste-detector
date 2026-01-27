@@ -1,11 +1,11 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\AST;
+namespace ShipMonk\CopyPasteDetector\AST;
 
-use CopyPasteDetector\Hashing\SubtreeHasher;
 use LogicException;
 use PhpParser\Node;
 use PhpParser\NodeVisitorAbstract;
+use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
 use SplObjectStorage;
 use function is_array;
 

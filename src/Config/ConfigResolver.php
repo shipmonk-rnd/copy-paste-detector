@@ -1,8 +1,8 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Config;
+namespace ShipMonk\CopyPasteDetector\Config;
 
-use CopyPasteDetector\Exception\ErrorException;
+use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 use Throwable;
 use function is_file;
 use function str_ends_with;

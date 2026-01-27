@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Config;
+namespace ShipMonk\CopyPasteDetector\Config;
 
 /**
  * Result of config resolution containing the config and metadata about how it was resolved

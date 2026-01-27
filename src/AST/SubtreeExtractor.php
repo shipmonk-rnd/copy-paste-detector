@@ -1,10 +1,10 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\AST;
+namespace ShipMonk\CopyPasteDetector\AST;
 
-use CopyPasteDetector\Hashing\SubtreeHasher;
 use PhpParser\Node\Stmt;
 use PhpParser\NodeTraverser;
+use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
 
 /**
  * Extracts all subtrees from an AST that meet the minimum node count threshold

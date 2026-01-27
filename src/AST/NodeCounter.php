@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\AST;
+namespace ShipMonk\CopyPasteDetector\AST;
 
 use PhpParser\Node;
 use PhpParser\NodeTraverser;

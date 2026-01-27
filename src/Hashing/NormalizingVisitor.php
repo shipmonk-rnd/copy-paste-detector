@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Hashing;
+namespace ShipMonk\CopyPasteDetector\Hashing;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr\Variable;
