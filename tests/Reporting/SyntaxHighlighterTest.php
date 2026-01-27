@@ -14,13 +14,9 @@ final class SyntaxHighlighterTest extends TestCase
         $code = 'function foo($bar) { return $bar + 1; }';
         $highlighted = $highlighter->highlight($code);
 
-        // Should contain ANSI color codes if enabled, or equal to original if disabled
-        if ($highlighter->isEnabled()) {
-            self::assertStringContainsString("\033[", $highlighted, 'Should contain ANSI color codes');
-            self::assertNotSame($code, $highlighted, 'Should modify the code');
-        } else {
-            self::assertSame($code, $highlighted, 'Should return original if not enabled');
-        }
+        // Should contain ANSI color codes when enabled (assuming tokenizer extension is loaded)
+        self::assertStringContainsString("\033[", $highlighted, 'Should contain ANSI color codes');
+        self::assertNotSame($code, $highlighted, 'Should modify the code');
     }
 
     public function testHighlightWithColorsDisabled(): void
@@ -32,7 +28,6 @@ final class SyntaxHighlighterTest extends TestCase
         // Should not contain ANSI color codes
         self::assertStringNotContainsString("\033[", $highlighted, 'Should not contain ANSI color codes');
         self::assertSame($code, $highlighted, 'Should return original code unchanged');
-        self::assertFalse($highlighter->isEnabled());
     }
 
     public function testHighlightKeywords(): void
@@ -42,11 +37,7 @@ final class SyntaxHighlighterTest extends TestCase
         $highlighted = $highlighter->highlight($code);
 
         // Keywords like 'if', 'return', 'true', 'false' should be highlighted
-        if ($highlighter->isEnabled()) {
-            self::assertNotSame($code, $highlighted, 'Should modify the code with highlighting');
-        } else {
-            self::assertSame($code, $highlighted);
-        }
+        self::assertNotSame($code, $highlighted, 'Should modify the code with highlighting');
     }
 
     public function testHighlightVariables(): void
@@ -56,11 +47,7 @@ final class SyntaxHighlighterTest extends TestCase
         $highlighted = $highlighter->highlight($code);
 
         // Variables should be highlighted
-        if ($highlighter->isEnabled()) {
-            self::assertNotSame($code, $highlighted, 'Should highlight variables');
-        } else {
-            self::assertSame($code, $highlighted);
-        }
+        self::assertNotSame($code, $highlighted, 'Should highlight variables');
     }
 
     public function testHighlightStrings(): void
@@ -70,11 +57,7 @@ final class SyntaxHighlighterTest extends TestCase
         $highlighted = $highlighter->highlight($code);
 
         // Strings should be highlighted
-        if ($highlighter->isEnabled()) {
-            self::assertNotSame($code, $highlighted, 'Should highlight strings');
-        } else {
-            self::assertSame($code, $highlighted);
-        }
+        self::assertNotSame($code, $highlighted, 'Should highlight strings');
     }
 
     public function testHighlightNumbers(): void
@@ -84,23 +67,7 @@ final class SyntaxHighlighterTest extends TestCase
         $highlighted = $highlighter->highlight($code);
 
         // Numbers should be highlighted
-        if ($highlighter->isEnabled()) {
-            self::assertNotSame($code, $highlighted, 'Should highlight numbers');
-        } else {
-            self::assertSame($code, $highlighted);
-        }
-    }
-
-    public function testDisableMethod(): void
-    {
-        $highlighter = new SyntaxHighlighter(true);
-
-        $highlighter->disable();
-        self::assertFalse($highlighter->isEnabled(), 'Should be disabled after calling disable()');
-
-        $code = 'function test() {}';
-        $highlighted = $highlighter->highlight($code);
-        self::assertSame($code, $highlighted, 'Should not highlight when disabled');
+        self::assertNotSame($code, $highlighted, 'Should highlight numbers');
     }
 
 }

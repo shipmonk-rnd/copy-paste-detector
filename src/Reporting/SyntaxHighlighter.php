@@ -278,22 +278,6 @@ final class SyntaxHighlighter
     }
 
     /**
-     * Check if syntax highlighting is enabled
-     */
-    public function isEnabled(): bool
-    {
-        return $this->enabled;
-    }
-
-    /**
-     * Disable syntax highlighting
-     */
-    public function disable(): void
-    {
-        $this->enabled = false;
-    }
-
-    /**
      * Format a file path with bold styling
      */
     public function formatPath(string $path): string

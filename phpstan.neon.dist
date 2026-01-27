@@ -42,6 +42,13 @@ parameters:
             identifier: missingType.checkedException
             path: tests/*
 
+    shipmonkDeadCode:
+        detect:
+            deadEnumCases: true
+        usageExcluders:
+            tests:
+                enabled: true
+
     shipmonkRules:
         classSuffixNaming:
             superclassToSuffixMapping:
