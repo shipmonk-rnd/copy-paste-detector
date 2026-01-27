@@ -15,7 +15,7 @@ use ShipMonk\CopyPasteDetector\Hashing\HashIndex;
 use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Output\OutputInterface;
-use function array_merge;
+use function array_push;
 use function count;
 use function max;
 use function usort;
@@ -96,14 +96,14 @@ final class CloneDetector
             // Try cache first
             $cachedSubtrees = $cache?->get($filePath, $minNodeCount);
             if ($cachedSubtrees !== null) {
-                $allSubtrees = array_merge($allSubtrees, $cachedSubtrees);
+                array_push($allSubtrees, ...$cachedSubtrees);
                 $progressBar?->advance();
                 continue;
             }
 
             $ast = $this->parseFile($filePath);
             $subtrees = $this->subtreeExtractor->extract($ast, $filePath, $minNodeCount);
-            $allSubtrees = array_merge($allSubtrees, $subtrees);
+            array_push($allSubtrees, ...$subtrees);
             $cache?->set($filePath, $minNodeCount, $subtrees);
 
             $progressBar?->advance();
