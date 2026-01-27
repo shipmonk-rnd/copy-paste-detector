@@ -12,8 +12,6 @@ use LogicException;
 final class Config
 {
 
-    public const DEFAULT_MIN_NODE_COUNT = 50;
-
     private ?int $minNodeCount = null;
     private ?string $cacheDir = null;
 
@@ -147,14 +145,6 @@ final class Config
     public function getMinNodeCount(): ?int
     {
         return $this->minNodeCount;
-    }
-
-    /**
-     * Get the min node count with CLI override and default fallback
-     */
-    public function getResolvedMinNodeCount(?int $cliOverride): int
-    {
-        return $cliOverride ?? $this->minNodeCount ?? self::DEFAULT_MIN_NODE_COUNT;
     }
 
     public function getCacheDir(): ?string

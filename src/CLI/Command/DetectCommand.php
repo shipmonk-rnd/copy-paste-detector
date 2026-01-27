@@ -124,11 +124,8 @@ HELP,);
         $this->displayConfigPath($resolvedConfig, $stderr, $cwd);
 
         [$cacheDir, $usingDefaultCacheDir, $cliOverrideCacheDir] = $this->resolveCacheDir($input, $config);
-        [$minNodeCountOverride, $usingDefaultMinNodeCount, $cliOverrideMinNodeCount] = $this->resolveMinNodeCount($input, $config);
-
+        [$minNodeCount, $usingDefaultMinNodeCount, $cliOverrideMinNodeCount] = $this->resolveMinNodeCount($input, $config);
         [$paths, $usingDefaultPaths, $overriddenConfigPaths] = $this->resolvePaths($input, $config);
-
-        $minNodeCount = $config->getResolvedMinNodeCount($minNodeCountOverride);
 
         $realExcludePaths = $this->resolveExcludePaths($config, $cwd);
         $this->warnAboutIneffectiveExcludes($paths, $realExcludePaths, $cwd, $stderr);
@@ -222,7 +219,7 @@ HELP,);
     }
 
     /**
-     * @return array{int|null, bool, bool} [minNodeCountOverride, usingDefault, cliOverride]
+     * @return array{int, bool, bool} [minNodeCount, usingDefault, cliOverride]
      */
     private function resolveMinNodeCount(
         InputInterface $input,
@@ -230,13 +227,13 @@ HELP,);
     ): array
     {
         $minNodeCountOption = $input->getOption('min-node-count');
-        $minNodeCountOverride = $minNodeCountOption !== null ? (int) $minNodeCountOption : null; // @phpstan-ignore cast.int
+        $cliMinNodeCount = $minNodeCountOption !== null ? (int) $minNodeCountOption : null; // @phpstan-ignore cast.int
 
         $configMinNodeCount = $config->getMinNodeCount();
-        $usingDefault = $minNodeCountOverride === null && $configMinNodeCount === null;
-        $cliOverride = $minNodeCountOverride !== null && $configMinNodeCount !== null;
+        $usingDefault = $cliMinNodeCount === null && $configMinNodeCount === null;
+        $cliOverride = $cliMinNodeCount !== null && $configMinNodeCount !== null;
 
-        return [$minNodeCountOverride, $usingDefault, $cliOverride];
+        return [$cliMinNodeCount ?? $configMinNodeCount ?? 50, $usingDefault, $cliOverride];
     }
 
     /**
