@@ -160,7 +160,7 @@ HELP,);
 
         $this->outputReport($cloneGroups, $elapsedTime, $output);
 
-        return Command::SUCCESS;
+        return count($cloneGroups) === 0 ? Command::SUCCESS : Command::FAILURE;
     }
 
     private function getStderr(OutputInterface $output): OutputInterface
