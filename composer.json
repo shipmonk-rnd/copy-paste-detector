@@ -2,7 +2,7 @@
     "name": "shipmonk/copy-paste-detector",
     "description": "AST-based structural code clone detector for PHP",
     "license": "MIT",
-    "type": "project",
+    "type": "library",
     "keywords": [
         "dev",
         "code-clone",
