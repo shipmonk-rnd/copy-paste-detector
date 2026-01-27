@@ -2,6 +2,7 @@
 
 namespace CopyPasteDetector\CLI;
 
+use Composer\InstalledVersions;
 use CopyPasteDetector\CLI\Command\DetectCommand;
 use CopyPasteDetector\Exception\ErrorException;
 use Symfony\Component\Console\Application as BaseApplication;
@@ -16,7 +17,9 @@ final class Application extends BaseApplication
 
     public function __construct()
     {
-        parent::__construct('Copy-Paste Detector', '1.0.0');
+        $version = InstalledVersions::getPrettyVersion('shipmonk/copy-paste-detector') ?? 'dev';
+
+        parent::__construct('Copy Paste Detector', $version);
 
         $this->addCommand(new DetectCommand());
         $this->setDefaultCommand('detect', true);
