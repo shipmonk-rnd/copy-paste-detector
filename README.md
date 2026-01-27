@@ -56,6 +56,9 @@ $config->setMinNodeCount(50);
 // Set cache directory (optional, defaults to system temp directory)
 $config->setCacheDir('cache/copy-paste-detector/');
 
+// Exclude paths from analysis
+$config->setExcludePaths(['tests/_fixtures', 'src/Generated/']);
+
 // Configure anonymization strategies
 $config->setAnonymizeVariables(true); // treat variable names like `$foo` and `$bar` as equivalent
 $config->setAnonymizeLiterals(false); // treat string and number literals as equivalent
