@@ -2,7 +2,6 @@
 
 namespace ShipMonk\CopyPasteDetector\Detection;
 
-use LogicException;
 use PhpParser\Node\Stmt;
 use ShipMonk\CopyPasteDetector\AST\Parser;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
@@ -56,6 +55,8 @@ final class CloneDetector
      * @param OutputInterface|null $output Optional output interface for verbose logging
      * @param SubtreeCache|null $cache Optional cache for storing/retrieving subtrees
      * @return list<CloneGroup> Array of detected clone groups (each containing 2+ identical subtrees)
+     *
+     * @throws ErrorException
      */
     public function detect(
         array $filePaths,
@@ -80,6 +81,8 @@ final class CloneDetector
      *
      * @param list<string> $filePaths
      * @return list<Subtree>
+     *
+     * @throws ErrorException
      */
     private function parseAndExtractSubtrees(
         array $filePaths,
@@ -123,14 +126,12 @@ final class CloneDetector
      * Parse a single file, returning AST
      *
      * @return list<Stmt>
+     *
+     * @throws ErrorException
      */
     private function parseFile(string $filePath): array
     {
-        try {
-            return $this->parser->parseFile($filePath);
-        } catch (ErrorException $e) {
-            throw new LogicException("Failed to parse '{$filePath}': {$e->getMessage()}", 0, $e);
-        }
+        return $this->parser->parseFile($filePath);
     }
 
     /**

@@ -415,6 +415,8 @@ HELP,);
     /**
      * @param list<string> $files
      * @return list<CloneGroup>
+     *
+     * @throws ErrorException
      */
     private function detectClones(
         array $files,
