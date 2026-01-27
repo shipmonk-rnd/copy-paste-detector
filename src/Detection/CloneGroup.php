@@ -2,7 +2,6 @@
 
 namespace ShipMonk\CopyPasteDetector\Detection;
 
-use InvalidArgumentException;
 use LogicException;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
 use function array_key_exists;
@@ -25,7 +24,7 @@ final class CloneGroup
     public function __construct(array $subtrees)
     {
         if (count($subtrees) < 2) {
-            throw new InvalidArgumentException('A clone group must contain at least 2 subtrees');
+            throw new LogicException('A clone group must contain at least 2 subtrees');
         }
 
         $this->subtrees = $subtrees;

@@ -2,7 +2,7 @@
 
 namespace ShipMonk\CopyPasteDetectorTests\Config;
 
-use InvalidArgumentException;
+use LogicException;
 use PHPUnit\Framework\TestCase;
 use ShipMonk\CopyPasteDetector\Config\Config;
 
@@ -31,7 +31,7 @@ final class ConfigTest extends TestCase
 
     public function testSetMinNodeCountThrowsForZero(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('minNodeCount must be at least 1');
 
         (new Config())->setMinNodeCount(0);
@@ -39,7 +39,7 @@ final class ConfigTest extends TestCase
 
     public function testSetMinNodeCountThrowsForNegative(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('minNodeCount must be at least 1');
 
         (new Config())->setMinNodeCount(-5);

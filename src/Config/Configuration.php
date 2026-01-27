@@ -2,7 +2,7 @@
 
 namespace ShipMonk\CopyPasteDetector\Config;
 
-use InvalidArgumentException;
+use LogicException;
 
 /**
  * Runtime configuration for clone detection
@@ -28,7 +28,7 @@ final class Configuration
     )
     {
         if ($minNodeCount < 1) {
-            throw new InvalidArgumentException('minNodeCount must be at least 1');
+            throw new LogicException('minNodeCount must be at least 1');
         }
 
         $this->minNodeCount = $minNodeCount;

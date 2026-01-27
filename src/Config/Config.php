@@ -2,7 +2,7 @@
 
 namespace ShipMonk\CopyPasteDetector\Config;
 
-use InvalidArgumentException;
+use LogicException;
 
 /**
  * This class is expected to be returned from a config file passed via --config option.
@@ -38,12 +38,12 @@ final class Config
      * Set the minimum number of nodes for a subtree to be considered a clone.
      * Higher values mean fewer but larger clones will be detected.
      *
-     * @throws InvalidArgumentException
+     * @throws LogicException
      */
     public function setMinNodeCount(int $minNodeCount): self
     {
         if ($minNodeCount < 1) {
-            throw new InvalidArgumentException('minNodeCount must be at least 1');
+            throw new LogicException('minNodeCount must be at least 1');
         }
 
         $this->minNodeCount = $minNodeCount;
