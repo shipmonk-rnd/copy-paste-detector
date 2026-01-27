@@ -21,6 +21,7 @@ final class NormalizingVisitor extends NodeVisitorAbstract
     private int $varCounter = 0;
     private int $literalCounter = 0;
     private int $nameCounter = 0;
+    private int $identifierCounter = 0;
 
     public function __construct(
         private readonly bool $anonymizeVariables,
@@ -66,7 +67,7 @@ final class NormalizingVisitor extends NodeVisitorAbstract
 
         // Anonymize identifiers (method names, constant names, etc.)
         if ($this->anonymizeIdentifiers && $node instanceof Identifier) {
-            $node->name = 'I' . $this->nameCounter++;
+            $node->name = 'I' . $this->identifierCounter++;
             return $node;
         }
 
