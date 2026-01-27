@@ -1,6 +1,6 @@
 {
     "name": "shipmonk/copy-paste-detector",
-    "description": "AST-based structural code clone detector for PHP",
+    "description": "Finds duplicated PHP code structures using AST-based analysis, inspired by CloneDR to detect Type-2 (parameterized) code clones.",
     "license": "MIT",
     "type": "library",
     "keywords": [
