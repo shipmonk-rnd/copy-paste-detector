@@ -425,7 +425,7 @@ HELP,);
         OutputInterface $stderr,
     ): array
     {
-        $cache = new SubtreeCache($cacheDir);
+        $cache = new SubtreeCache($cacheDir, $config->getAnonymizationSettings());
         $detector = new CloneDetector($config);
 
         return $detector->detect(

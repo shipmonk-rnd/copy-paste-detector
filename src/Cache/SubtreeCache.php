@@ -5,6 +5,7 @@ namespace ShipMonk\CopyPasteDetector\Cache;
 use JsonException;
 use LogicException;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
+use ShipMonk\CopyPasteDetector\Config\AnonymizationSettings;
 use function array_map;
 use function file_exists;
 use function file_get_contents;
@@ -18,6 +19,7 @@ use function json_encode;
 use function md5;
 use function md5_file;
 use function mkdir;
+use function serialize;
 use const JSON_THROW_ON_ERROR;
 
 /**
@@ -27,12 +29,15 @@ final class SubtreeCache
 {
 
     private string $cacheDir;
+    private AnonymizationSettings $anonymizationSettings;
 
     public function __construct(
         string $cacheDir,
+        AnonymizationSettings $anonymizationSettings,
     )
     {
         $this->cacheDir = $cacheDir;
+        $this->anonymizationSettings = $anonymizationSettings;
 
         if (!is_dir($this->cacheDir)) {
             if (!mkdir($this->cacheDir, 0755, true) && !is_dir($this->cacheDir)) {
@@ -176,15 +181,24 @@ final class SubtreeCache
     }
 
     /**
-     * Get cache file path for a source file and minNodeCount combination
+     * Get cache file path for a source file, minNodeCount, and anonymization settings
      */
     private function getCacheFilePath(
         string $filePath,
         int $minNodeCount,
     ): string
     {
-        // Create a unique cache key based on file path and minNodeCount
-        $key = md5($filePath . ':' . $minNodeCount);
+        $settings = $this->anonymizationSettings;
+
+        $key = md5(serialize([
+            'file' => $filePath,
+            'minNodeCount' => $minNodeCount,
+            'anonymizeVariables' => $settings->variables,
+            'anonymizeLiterals' => $settings->literals,
+            'anonymizeNames' => $settings->names,
+            'anonymizeIdentifiers' => $settings->identifiers,
+        ]));
+
         return $this->cacheDir . '/' . $key . '.cache';
     }
 

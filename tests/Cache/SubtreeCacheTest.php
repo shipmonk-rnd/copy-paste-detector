@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use ShipMonk\CopyPasteDetector\AST\Parser;
 use ShipMonk\CopyPasteDetector\AST\SubtreeExtractor;
 use ShipMonk\CopyPasteDetector\Cache\SubtreeCache;
+use ShipMonk\CopyPasteDetector\Config\AnonymizationSettings;
 use ShipMonk\CopyPasteDetector\Hashing\AstNormalizer;
 use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
 use ShipMonk\CopyPasteDetectorTests\Helpers\TestDirectoryHelper;
@@ -37,14 +38,14 @@ final class SubtreeCacheTest extends TestCase
     {
         self::assertDirectoryDoesNotExist($this->cacheDir);
 
-        new SubtreeCache($this->cacheDir);
+        new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
 
         self::assertDirectoryExists($this->cacheDir);
     }
 
     public function testGetReturnsNullForNonExistentFile(): void
     {
-        $cache = new SubtreeCache($this->cacheDir);
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
 
         $result = $cache->get('/nonexistent/file.php', 10);
 
@@ -53,7 +54,7 @@ final class SubtreeCacheTest extends TestCase
 
     public function testGetReturnsNullWhenNoCacheExists(): void
     {
-        $cache = new SubtreeCache($this->cacheDir);
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
         $file = $this->createTempFile('<?php $x = 1;');
 
         $result = $cache->get($file, 10);
@@ -63,7 +64,7 @@ final class SubtreeCacheTest extends TestCase
 
     public function testSetAndGetRoundTrip(): void
     {
-        $cache = new SubtreeCache($this->cacheDir);
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
         $file = $this->createTempFile('<?php
             function calculate($a, $b) {
                 $result = $a + $b;
@@ -97,7 +98,7 @@ final class SubtreeCacheTest extends TestCase
 
     public function testCacheInvalidatedWhenFileChanges(): void
     {
-        $cache = new SubtreeCache($this->cacheDir);
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
         $file = $this->createTempFile('<?php $x = 1;');
 
         $parser = new Parser();
@@ -120,7 +121,7 @@ final class SubtreeCacheTest extends TestCase
 
     public function testDifferentMinNodeCountUsesSeparateCache(): void
     {
-        $cache = new SubtreeCache($this->cacheDir);
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
         $file = $this->createTempFile('<?php
             function foo($x) {
                 $y = $x + 1;
@@ -148,15 +149,63 @@ final class SubtreeCacheTest extends TestCase
         self::assertCount(count($subtrees10), $cached10);
     }
 
+    public function testDifferentAnonymizationSettingsUseSeparateCache(): void
+    {
+        $file = $this->createTempFile('<?php
+            function foo($x) {
+                $y = $x + 1;
+                return $y * 2;
+            }
+        ');
+
+        $parser = new Parser();
+        $extractor = $this->createSubtreeExtractor();
+        $ast = $parser->parseFile($file);
+        $subtrees = $extractor->extract($ast, $file, minNodeCount: 5);
+
+        // Store with one anonymization settings
+        $settings1 = new AnonymizationSettings(
+            variables: true,
+            literals: false,
+            names: false,
+            identifiers: false,
+        );
+        $cache1 = new SubtreeCache($this->cacheDir, $settings1);
+        $cache1->set($file, 5, $subtrees);
+
+        // Verify cache hit with same settings
+        self::assertNotNull($cache1->get($file, 5));
+
+        // Cache with different anonymization settings should miss
+        $settings2 = new AnonymizationSettings(
+            variables: true,
+            literals: true,
+            names: false,
+            identifiers: false,
+        );
+        $cache2 = new SubtreeCache($this->cacheDir, $settings2);
+        self::assertNull($cache2->get($file, 5));
+    }
+
     public function testSetIgnoresNonExistentFile(): void
     {
-        $cache = new SubtreeCache($this->cacheDir);
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
 
         // Should not throw, just silently ignore
         $cache->set('/nonexistent/file.php', 10, []);
 
         // No cache should be created
         self::assertNull($cache->get('/nonexistent/file.php', 10));
+    }
+
+    private function createDefaultSettings(): AnonymizationSettings
+    {
+        return new AnonymizationSettings(
+            variables: true,
+            literals: false,
+            names: false,
+            identifiers: false,
+        );
     }
 
     private function createTempFile(string $content): string

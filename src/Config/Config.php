@@ -198,4 +198,17 @@ final class Config
         return $this->anonymizeIdentifiers;
     }
 
+    /**
+     * Get the anonymization settings as an immutable value object
+     */
+    public function getAnonymizationSettings(): AnonymizationSettings
+    {
+        return new AnonymizationSettings(
+            variables: $this->anonymizeVariables,
+            literals: $this->anonymizeLiterals,
+            names: $this->anonymizeNames,
+            identifiers: $this->anonymizeIdentifiers,
+        );
+    }
+
 }
