@@ -1,12 +1,13 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests;
+namespace CopyPasteDetector\Tests\Cache;
 
 use CopyPasteDetector\AST\Parser;
 use CopyPasteDetector\AST\SubtreeExtractor;
 use CopyPasteDetector\Cache\SubtreeCache;
 use CopyPasteDetector\Hashing\AstNormalizer;
 use CopyPasteDetector\Hashing\SubtreeHasher;
+use CopyPasteDetector\Tests\Helpers\TestDirectoryHelper;
 use PHPUnit\Framework\TestCase;
 use function count;
 use function file_put_contents;

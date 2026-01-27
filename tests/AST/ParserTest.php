@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests;
+namespace CopyPasteDetector\Tests\AST;
 
 use CopyPasteDetector\AST\Parser;
 use CopyPasteDetector\Exception\ErrorException;

@@ -1,9 +1,10 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests;
+namespace CopyPasteDetector\Tests\Config;
 
 use CopyPasteDetector\Config\ConfigResolver;
 use CopyPasteDetector\Exception\ErrorException;
+use CopyPasteDetector\Tests\Helpers\TestDirectoryHelper;
 use PHPUnit\Framework\TestCase;
 use function file_put_contents;
 use function mkdir;

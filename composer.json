@@ -38,7 +38,7 @@
             "CopyPasteDetector\\Tests\\": "tests/"
         },
         "classmap": [
-            "tests/fixtures/"
+            "tests/_fixtures/"
         ]
     },
     "bin": [

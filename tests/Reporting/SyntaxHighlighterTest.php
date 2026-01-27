@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests;
+namespace CopyPasteDetector\Tests\Reporting;
 
 use CopyPasteDetector\Reporting\SyntaxHighlighter;
 use PHPUnit\Framework\TestCase;

@@ -1,11 +1,12 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests;
+namespace CopyPasteDetector\Tests\Reporting;
 
 use CopyPasteDetector\Config\Configuration;
 use CopyPasteDetector\Detection\CloneDetector;
 use CopyPasteDetector\Reporting\SyntaxHighlighter;
 use CopyPasteDetector\Reporting\TextReporter;
+use CopyPasteDetector\Tests\Helpers\TestDirectoryHelper;
 use PHPUnit\Framework\TestCase;
 use function count;
 use function file_put_contents;

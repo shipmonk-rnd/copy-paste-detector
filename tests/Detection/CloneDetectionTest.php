@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace CopyPasteDetector\Tests;
+namespace CopyPasteDetector\Tests\Detection;
 
 use CopyPasteDetector\Config\Configuration;
 use CopyPasteDetector\Detection\CloneDetector;
@@ -22,7 +22,7 @@ final class CloneDetectionTest extends TestCase
     {
         $configuration = new Configuration();
         $this->detector = new CloneDetector($configuration);
-        $this->fixturesPath = __DIR__ . '/fixtures/sample_code';
+        $this->fixturesPath = __DIR__ . '/../_fixtures/sample_code';
     }
 
     public function testDetectClonesInSampleFiles(): void

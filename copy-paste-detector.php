@@ -6,7 +6,7 @@ $config = new Config();
 
 // Set paths to analyze
 $config->setPaths(['src', 'tests']);
-$config->setExcludePaths(['tests/fixtures']);
+$config->setExcludePaths(['tests/_fixtures']);
 
 // Set cache directory
 $config->setCacheDir(__DIR__ . '/cache/self');
