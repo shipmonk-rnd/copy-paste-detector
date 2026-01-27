@@ -74,9 +74,9 @@ final class CloneDetector
      */
     public function detect(
         array $filePaths,
-        int $minNodeCount = Configuration::DEFAULT_MIN_NODE_COUNT,
-        ?OutputInterface $output = null,
-        ?SubtreeCache $cache = null,
+        int $minNodeCount,
+        ?OutputInterface $output,
+        ?SubtreeCache $cache,
     ): array
     {
         $this->output = $output;

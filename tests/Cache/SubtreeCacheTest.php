@@ -73,9 +73,7 @@ final class SubtreeCacheTest extends TestCase
 
         // Parse and extract subtrees from real code
         $parser = new Parser();
-        $hasher = new SubtreeHasher(new AstNormalizer());
-        $extractor = new SubtreeExtractor($hasher);
-
+        $extractor = $this->createSubtreeExtractor();
         $ast = $parser->parseFile($file);
         $subtrees = $extractor->extract($ast, $file, minNodeCount: 5);
 
@@ -103,9 +101,7 @@ final class SubtreeCacheTest extends TestCase
         $file = $this->createTempFile('<?php $x = 1;');
 
         $parser = new Parser();
-        $hasher = new SubtreeHasher(new AstNormalizer());
-        $extractor = new SubtreeExtractor($hasher);
-
+        $extractor = $this->createSubtreeExtractor();
         $ast = $parser->parseFile($file);
         $subtrees = $extractor->extract($ast, $file, minNodeCount: 1);
 
@@ -133,9 +129,7 @@ final class SubtreeCacheTest extends TestCase
         ');
 
         $parser = new Parser();
-        $hasher = new SubtreeHasher(new AstNormalizer());
-        $extractor = new SubtreeExtractor($hasher);
-
+        $extractor = $this->createSubtreeExtractor();
         $ast = $parser->parseFile($file);
         $subtrees5 = $extractor->extract($ast, $file, minNodeCount: 5);
         $subtrees10 = $extractor->extract($ast, $file, minNodeCount: 10);
@@ -170,6 +164,12 @@ final class SubtreeCacheTest extends TestCase
         $file = $this->tempDir . '/' . uniqid() . '.php';
         file_put_contents($file, $content);
         return $file;
+    }
+
+    private function createSubtreeExtractor(): SubtreeExtractor
+    {
+        $hasher = new SubtreeHasher(new AstNormalizer(true, false, false, false));
+        return new SubtreeExtractor($hasher);
     }
 
 }

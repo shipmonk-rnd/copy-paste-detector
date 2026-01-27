@@ -3,18 +3,22 @@
 namespace CopyPasteDetector\Cache;
 
 use CopyPasteDetector\AST\Subtree;
+use JsonException;
 use LogicException;
+use function array_map;
 use function file_exists;
 use function file_get_contents;
 use function file_put_contents;
 use function is_array;
 use function is_dir;
+use function is_int;
+use function is_string;
+use function json_decode;
+use function json_encode;
 use function md5;
 use function md5_file;
 use function mkdir;
-use function serialize;
-use function sys_get_temp_dir;
-use function unserialize;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Caches parsed subtrees to avoid re-parsing unchanged files
@@ -25,10 +29,10 @@ final class SubtreeCache
     private string $cacheDir;
 
     public function __construct(
-        ?string $cacheDir = null,
+        string $cacheDir,
     )
     {
-        $this->cacheDir = $cacheDir ?? sys_get_temp_dir() . '/copy-paste-detector-cache';
+        $this->cacheDir = $cacheDir;
 
         if (!is_dir($this->cacheDir)) {
             if (!mkdir($this->cacheDir, 0755, true) && !is_dir($this->cacheDir)) {
@@ -65,9 +69,14 @@ final class SubtreeCache
             throw new LogicException("Failed to read cache file '{$cacheFile}'");
         }
 
-        $cached = unserialize($cacheData);
-        if (!is_array($cached) || !isset($cached['hash']) || !isset($cached['subtrees'])) {
-            throw new LogicException("Cache file '{$cacheFile}' contains invalid data");
+        try {
+            $cached = json_decode($cacheData, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new LogicException("Failed to decode cache file '{$cacheFile}': {$e->getMessage()}", 0, $e);
+        }
+
+        if (!is_array($cached) || !isset($cached['hash']) || !isset($cached['subtrees']) || !is_array($cached['subtrees'])) {
+            return null; // Invalid cache format, treat as cache miss
         }
 
         // Validate cache is for same file version
@@ -75,9 +84,7 @@ final class SubtreeCache
             return null;
         }
 
-        /** @var list<Subtree> $subtrees */
-        $subtrees = $cached['subtrees'];
-        return $subtrees;
+        return $this->deserializeSubtrees($cached['subtrees']);
     }
 
     /**
@@ -102,13 +109,70 @@ final class SubtreeCache
 
         $cacheData = [
             'hash' => $fileHash,
-            'subtrees' => $subtrees,
+            'subtrees' => $this->serializeSubtrees($subtrees),
         ];
 
-        $result = file_put_contents($cacheFile, serialize($cacheData));
+        try {
+            $json = json_encode($cacheData, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new LogicException("Failed to encode cache data: {$e->getMessage()}", 0, $e);
+        }
+
+        $result = file_put_contents($cacheFile, $json);
         if ($result === false) {
             throw new LogicException("Failed to write cache file '{$cacheFile}'");
         }
+    }
+
+    /**
+     * @param list<Subtree> $subtrees
+     * @return list<array{filePath: string, startLine: int, endLine: int, nodeCount: int, hash: string}>
+     */
+    private function serializeSubtrees(array $subtrees): array
+    {
+        return array_map(
+            static fn (Subtree $subtree): array => [
+                'filePath' => $subtree->getFilePath(),
+                'startLine' => $subtree->getStartLine(),
+                'endLine' => $subtree->getEndLine(),
+                'nodeCount' => $subtree->getNodeCount(),
+                'hash' => $subtree->getHash(),
+            ],
+            $subtrees,
+        );
+    }
+
+    /**
+     * @param array<mixed> $data
+     * @return list<Subtree>|null
+     */
+    private function deserializeSubtrees(array $data): ?array
+    {
+        $subtrees = [];
+
+        foreach ($data as $item) {
+            if (
+                !is_array($item)
+                || !isset($item['filePath'], $item['startLine'], $item['endLine'], $item['nodeCount'], $item['hash'])
+                || !is_string($item['filePath'])
+                || !is_int($item['startLine'])
+                || !is_int($item['endLine'])
+                || !is_int($item['nodeCount'])
+                || !is_string($item['hash'])
+            ) {
+                return null; // Invalid data, treat as cache miss
+            }
+
+            $subtrees[] = new Subtree(
+                $item['filePath'],
+                $item['startLine'],
+                $item['endLine'],
+                $item['nodeCount'],
+                $item['hash'],
+            );
+        }
+
+        return $subtrees;
     }
 
     /**

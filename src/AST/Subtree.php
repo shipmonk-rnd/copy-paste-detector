@@ -2,8 +2,6 @@
 
 namespace CopyPasteDetector\AST;
 
-use PhpParser\Node;
-
 /**
  * Represents a subtree extracted from an AST with metadata
  */
@@ -11,7 +9,6 @@ final class Subtree
 {
 
     public function __construct(
-        private readonly Node $root,
         private readonly string $filePath,
         private readonly int $startLine,
         private readonly int $endLine,
@@ -19,11 +16,6 @@ final class Subtree
         private readonly string $hash,
     )
     {
-    }
-
-    public function getRoot(): Node
-    {
-        return $this->root;
     }
 
     public function getFilePath(): string

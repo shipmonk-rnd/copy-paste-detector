@@ -109,7 +109,7 @@ final class SyntaxHighlighter
      */
     private array $tokenColors = [];
 
-    public function __construct(bool $enabled = true)
+    public function __construct(bool $enabled)
     {
         $this->enabled = $enabled && extension_loaded('tokenizer');
         $this->initializeTokenColors();

@@ -91,7 +91,6 @@ final class SubtreeVisitor extends NodeVisitorAbstract
             $hash = $this->hasher->hashNode($node);
 
             $this->subtrees[] = new Subtree(
-                $node,
                 $this->filePath,
                 $startLine,
                 $endLine,

@@ -4,6 +4,7 @@ namespace CopyPasteDetector\Tests\Reporting;
 
 use CopyPasteDetector\Config\Configuration;
 use CopyPasteDetector\Detection\CloneDetector;
+use CopyPasteDetector\Detection\CloneGroup;
 use CopyPasteDetector\Reporting\SyntaxHighlighter;
 use CopyPasteDetector\Reporting\TextReporter;
 use CopyPasteDetector\Tests\Helpers\TestDirectoryHelper;
@@ -68,8 +69,7 @@ final class TextReporterTest extends TestCase
             }
         ');
 
-        $detector = new CloneDetector(new Configuration());
-        $cloneGroups = $detector->detect([$file1, $file2], minNodeCount: 5);
+        $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 5);
 
         self::assertNotEmpty($cloneGroups, 'Should detect clones for test');
 
@@ -113,8 +113,7 @@ final class TextReporterTest extends TestCase
             }
         ');
 
-        $detector = new CloneDetector(new Configuration());
-        $cloneGroups = $detector->detect([$file1, $file2], minNodeCount: 5);
+        $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 5);
 
         self::assertNotEmpty($cloneGroups, 'Should detect clones for test');
 
@@ -155,8 +154,7 @@ final class TextReporterTest extends TestCase
             }
         ');
 
-        $detector = new CloneDetector(new Configuration());
-        $cloneGroups = $detector->detect([$file1, $file2], minNodeCount: 5);
+        $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 5);
 
         if (count($cloneGroups) >= 2) {
             $result = $this->reporter->report($cloneGroups);
@@ -187,8 +185,7 @@ final class TextReporterTest extends TestCase
             echo $b;
         ');
 
-        $detector = new CloneDetector(new Configuration());
-        $cloneGroups = $detector->detect([$file1, $file2], minNodeCount: 3);
+        $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 3);
 
         if ($cloneGroups !== []) {
             $result = $reporter->report($cloneGroups);
@@ -216,8 +213,7 @@ final class TextReporterTest extends TestCase
             }
         ');
 
-        $detector = new CloneDetector(new Configuration());
-        $cloneGroups = $detector->detect([$file1, $file2], minNodeCount: 10);
+        $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 10);
 
         if ($cloneGroups !== []) {
             $result = $this->reporter->report($cloneGroups);
@@ -236,6 +232,20 @@ final class TextReporterTest extends TestCase
         $file = $this->tempDir . '/' . $name;
         file_put_contents($file, $content);
         return $file;
+    }
+
+    /**
+     * @param list<string> $files
+     * @return list<CloneGroup>
+     */
+    private function detectClones(
+        array $files,
+        int $minNodeCount,
+    ): array
+    {
+        $configuration = new Configuration(Configuration::DEFAULT_MIN_NODE_COUNT, true, false, false, false);
+        $detector = new CloneDetector($configuration);
+        return $detector->detect($files, $minNodeCount, null, null);
     }
 
 }

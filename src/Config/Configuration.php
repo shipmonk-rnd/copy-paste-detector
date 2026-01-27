@@ -20,11 +20,11 @@ final class Configuration
     private bool $anonymizeIdentifiers;
 
     public function __construct(
-        int $minNodeCount = self::DEFAULT_MIN_NODE_COUNT,
-        bool $anonymizeVariables = true,
-        bool $anonymizeLiterals = false,
-        bool $anonymizeNames = false,
-        bool $anonymizeIdentifiers = false,
+        int $minNodeCount,
+        bool $anonymizeVariables,
+        bool $anonymizeLiterals,
+        bool $anonymizeNames,
+        bool $anonymizeIdentifiers,
     )
     {
         if ($minNodeCount < 1) {
@@ -43,7 +43,7 @@ final class Configuration
      */
     public static function fromConfig(
         Config $config,
-        ?int $minNodeCountOverride = null,
+        ?int $minNodeCountOverride,
     ): self
     {
         return new self(

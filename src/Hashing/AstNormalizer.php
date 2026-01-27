@@ -18,10 +18,10 @@ final class AstNormalizer
 {
 
     public function __construct(
-        private readonly bool $anonymizeVariables = true,
-        private readonly bool $anonymizeLiterals = false,
-        private readonly bool $anonymizeNames = false,
-        private readonly bool $anonymizeIdentifiers = false,
+        private readonly bool $anonymizeVariables,
+        private readonly bool $anonymizeLiterals,
+        private readonly bool $anonymizeNames,
+        private readonly bool $anonymizeIdentifiers,
     )
     {
     }

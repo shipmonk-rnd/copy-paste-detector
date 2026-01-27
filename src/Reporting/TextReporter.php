@@ -4,13 +4,10 @@ namespace CopyPasteDetector\Reporting;
 
 use CopyPasteDetector\Detection\CloneGroup;
 use LogicException;
-use PhpParser\Node;
-use PhpParser\PrettyPrinter\Standard;
 use function array_slice;
 use function count;
 use function explode;
 use function file;
-use function file_exists;
 use function getcwd;
 use function implode;
 use function rtrim;
@@ -29,14 +26,12 @@ use const FILE_IGNORE_NEW_LINES;
 final class TextReporter
 {
 
-    private readonly Standard $printer;
     private readonly string $basePath;
 
     public function __construct(
         private readonly SyntaxHighlighter $highlighter,
     )
     {
-        $this->printer = new Standard();
         $cwd = getcwd();
         if ($cwd === false) {
             throw new LogicException('Failed to determine current working directory');
@@ -126,7 +121,6 @@ final class TextReporter
                 $this->formatPath($subtree->getFilePath()),
             );
             $output[] = $this->formatCode(
-                $subtree->getRoot(),
                 $subtree->getFilePath(),
                 $subtree->getStartLine(),
                 $subtree->getEndLine(),
@@ -137,29 +131,15 @@ final class TextReporter
     }
 
     /**
-     * Format AST node as code with syntax highlighting
-     *
-     * @param Node $node The AST node to format
-     * @param string|null $filePath Optional file path to read original source from
-     * @param int|null $startLine Optional start line to read from
-     * @param int|null $endLine Optional end line to read from
+     * Format source code with syntax highlighting
      */
     private function formatCode(
-        Node $node,
-        ?string $filePath = null,
-        ?int $startLine = null,
-        ?int $endLine = null,
+        string $filePath,
+        int $startLine,
+        int $endLine,
     ): string
     {
-        // If we have file path and line numbers, read the original source to preserve formatting
-        if ($filePath !== null && $startLine !== null && $endLine !== null && file_exists($filePath)) {
-            $code = $this->readOriginalSource($filePath, $startLine, $endLine);
-            $lineNumberOffset = $startLine;
-        } else {
-            // Fall back to pretty printing from AST
-            $code = $this->printer->prettyPrint([$node]);
-            $lineNumberOffset = 1;
-        }
+        $code = $this->readOriginalSource($filePath, $startLine, $endLine);
 
         // Add indentation and line numbers for readability
         $lines = explode("\n", $code);
@@ -167,7 +147,7 @@ final class TextReporter
 
         foreach ($lines as $i => $line) {
             $highlightedLine = $this->highlighter->highlight($line);
-            $formatted[] = sprintf('  %3d | %s', $lineNumberOffset + $i, $highlightedLine);
+            $formatted[] = sprintf('  %3d | %s', $startLine + $i, $highlightedLine);
         }
 
         return implode("\n", $formatted);

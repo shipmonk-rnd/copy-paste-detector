@@ -4,6 +4,7 @@ namespace CopyPasteDetector\Tests\Detection;
 
 use CopyPasteDetector\Config\Configuration;
 use CopyPasteDetector\Detection\CloneDetector;
+use CopyPasteDetector\Detection\CloneGroup;
 use PHPUnit\Framework\TestCase;
 use function file_put_contents;
 use function mkdir;
@@ -20,9 +21,25 @@ final class CloneDetectionTest extends TestCase
 
     protected function setUp(): void
     {
-        $configuration = new Configuration();
-        $this->detector = new CloneDetector($configuration);
+        $this->detector = new CloneDetector($this->createConfiguration());
         $this->fixturesPath = __DIR__ . '/../_fixtures/sample_code';
+    }
+
+    private function createConfiguration(): Configuration
+    {
+        return new Configuration(Configuration::DEFAULT_MIN_NODE_COUNT, true, false, false, false);
+    }
+
+    /**
+     * @param list<string> $files
+     * @return list<CloneGroup>
+     */
+    private function detect(
+        array $files,
+        int $minNodeCount,
+    ): array
+    {
+        return $this->detector->detect($files, $minNodeCount, null, null);
     }
 
     public function testDetectClonesInSampleFiles(): void
@@ -33,10 +50,7 @@ final class CloneDetectionTest extends TestCase
         ];
 
         // Use lower threshold for testing
-        $cloneGroups = $this->detector->detect(
-            $files,
-            minNodeCount: 10, // Lower node count threshold for smaller test files
-        );
+        $cloneGroups = $this->detect($files, minNodeCount: 10);
 
         // We expect to find clone groups between the similar methods
         self::assertNotEmpty($cloneGroups, 'Should detect clone groups in sample files');
@@ -66,10 +80,7 @@ final class CloneDetectionTest extends TestCase
         file_put_contents($file2, '<?php class Beta { public $x; }');
 
         try {
-            $cloneGroups = $this->detector->detect(
-                [$file1, $file2],
-                minNodeCount: 5,
-            );
+            $cloneGroups = $this->detect([$file1, $file2], minNodeCount: 5);
 
             // Completely different code should not produce clones
             self::assertEmpty($cloneGroups, 'Should not detect clones in completely different code');
@@ -118,10 +129,7 @@ final class CloneDetectionTest extends TestCase
         file_put_contents($file2, $code2);
 
         try {
-            $cloneGroups = $this->detector->detect(
-                [$file1, $file2],
-                minNodeCount: 10,
-            );
+            $cloneGroups = $this->detect([$file1, $file2], minNodeCount: 10);
 
             // Should detect these as clones due to normalization (anonymization)
             self::assertNotEmpty(
