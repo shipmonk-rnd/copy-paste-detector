@@ -45,4 +45,6 @@ parameters:
     shipmonkRules:
         classSuffixNaming:
             superclassToSuffixMapping:
+                Symfony\Component\Console\Command\Command: Command
                 PHPUnit\Framework\TestCase: Test
+                Exception: Exception
