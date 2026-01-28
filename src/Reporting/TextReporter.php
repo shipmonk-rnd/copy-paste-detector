@@ -10,6 +10,7 @@ use function explode;
 use function file;
 use function getcwd;
 use function implode;
+use function realpath;
 use function rtrim;
 use function sprintf;
 use function str_repeat;
@@ -118,9 +119,11 @@ final class TextReporter
             return $text;
         }
 
-        $absolutePath = str_starts_with($filePath, '/')
-            ? $filePath
-            : $this->basePath . '/' . $filePath;
+        $absolutePath = realpath($filePath);
+
+        if ($absolutePath === false) {
+            throw new LogicException("Failed to resolve real path for '{$filePath}'");
+        }
 
         $url = str_replace(
             ['{relFile}', '{file}', '{line}'],
