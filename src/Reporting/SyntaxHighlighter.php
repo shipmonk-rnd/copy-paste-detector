@@ -7,6 +7,7 @@ use function array_key_exists;
 use function extension_loaded;
 use function in_array;
 use function is_string;
+use function sprintf;
 use function str_starts_with;
 use function strtolower;
 use function token_get_all;
@@ -100,6 +101,7 @@ final class SyntaxHighlighter
     private const COLOR_COMMENT = "\033[90m"; // Gray
     private const COLOR_NUMBER = "\033[33m"; // Yellow
     private const COLOR_TYPE = "\033[35m"; // Magenta
+    private const COLOR_DIM = "\033[2m"; // Dim
     private const FORMAT_BOLD = "\033[1m"; // Bold
 
     private bool $enabled;
@@ -287,6 +289,30 @@ final class SyntaxHighlighter
         }
 
         return self::FORMAT_BOLD . $path . self::COLOR_RESET;
+    }
+
+    /**
+     * Format text with dim styling
+     */
+    public function formatDim(string $text): string
+    {
+        if (!$this->enabled) {
+            return $text;
+        }
+
+        return self::COLOR_DIM . $text . self::COLOR_RESET;
+    }
+
+    /**
+     * Format a line number right-aligned with dim styling
+     */
+    public function formatLineNumber(
+        int $lineNumber,
+        int $width,
+    ): string
+    {
+        $formatted = sprintf('%' . $width . 'd', $lineNumber);
+        return $this->formatDim($formatted);
     }
 
 }

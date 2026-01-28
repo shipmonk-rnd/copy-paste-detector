@@ -58,16 +58,17 @@ final class TextReporter
         }
 
         $output = [];
-        $output[] = str_repeat('=', 80);
 
         $groupNumber = 1;
         foreach ($cloneGroups as $group) {
+            $output[] = '';
+            $output[] = '  ' . str_repeat("\u{2500}", 37);
             $output[] = $this->formatCloneGroup($group, $groupNumber);
             $groupNumber++;
         }
 
-        $output[] = str_repeat('=', 80);
-        $output[] = sprintf("Total: %d clone group(s) detected, took %s\n", count($cloneGroups), $timeStr);
+        $output[] = '';
+        $output[] = sprintf("  \u{2716} %d clone groups found (%s)\n", count($cloneGroups), $timeStr);
 
         return implode("\n", $output);
     }
@@ -112,19 +113,20 @@ final class TextReporter
         $nodeCount = $group->getNodeCount();
 
         $output = [];
-        $output[] = str_repeat('-', 80);
         $output[] = sprintf(
-            'Clone Group #%d (%d nodes, %d instances)',
+            '  Clone #%d  %d nodes · %d instances',
             $index,
             $nodeCount,
             $instanceCount,
         );
-        $output[] = str_repeat('-', 80);
 
         foreach ($subtrees as $subtree) {
+            $output[] = '';
             $output[] = sprintf(
-                '%s:',
+                '  %s:%d-%d',
                 $this->formatPath($subtree->getFilePath()),
+                $subtree->getStartLine(),
+                $subtree->getEndLine(),
             );
             $output[] = $this->formatCode(
                 $subtree->getFilePath(),
@@ -147,13 +149,19 @@ final class TextReporter
     {
         $code = $this->readOriginalSource($filePath, $startLine, $endLine);
 
-        // Add indentation and line numbers for readability
         $lines = explode("\n", $code);
         $formatted = [];
+        $maxLineNumber = $startLine + count($lines) - 1;
+        $width = strlen((string) $maxLineNumber);
+        if ($width < 3) {
+            $width = 3;
+        }
 
         foreach ($lines as $i => $line) {
             $highlightedLine = $this->highlighter->highlight($line);
-            $formatted[] = sprintf('  %3d | %s', $startLine + $i, $highlightedLine);
+            $lineNum = $this->highlighter->formatLineNumber($startLine + $i, $width);
+            $separator = $this->highlighter->formatDim("\u{2502}");
+            $formatted[] = sprintf('  %s %s %s', $lineNum, $separator, $highlightedLine);
         }
 
         return implode("\n", $formatted);

@@ -76,12 +76,11 @@ final class TextReporterTest extends TestCase
         $result = $this->reporter->report($cloneGroups, 1.23);
 
         // Verify report structure
-        self::assertStringContainsString('Clone Group #1', $result);
+        self::assertStringContainsString('Clone #1', $result);
         self::assertStringContainsString('nodes', $result);
         self::assertStringContainsString('instances', $result);
-        self::assertStringContainsString('Total:', $result);
-        self::assertStringContainsString('clone group(s) detected', $result);
-        self::assertStringContainsString('took 1.23s', $result);
+        self::assertStringContainsString('clone groups found', $result);
+        self::assertStringContainsString('(1.23s)', $result);
 
         // Verify file references are included
         self::assertStringContainsString('file1.php', $result);
@@ -120,8 +119,8 @@ final class TextReporterTest extends TestCase
 
         $result = $this->reporter->report($cloneGroups, 1.23);
 
-        // Report should include line number formatting (e.g., "  2 |")
-        self::assertMatchesRegularExpression('/\s+\d+\s+\|/', $result);
+        // Report should include line number formatting (e.g., "  2 │")
+        self::assertMatchesRegularExpression('/\s+\d+\s+\x{2502}/u', $result);
     }
 
     public function testReportFormatsMultipleCloneGroups(): void
@@ -160,12 +159,12 @@ final class TextReporterTest extends TestCase
         if (count($cloneGroups) >= 2) {
             $result = $this->reporter->report($cloneGroups, 1.23);
 
-            self::assertStringContainsString('Clone Group #1', $result);
-            self::assertStringContainsString('Clone Group #2', $result);
+            self::assertStringContainsString('Clone #1', $result);
+            self::assertStringContainsString('Clone #2', $result);
         } else {
             // If only one group detected, just verify basic formatting
             $result = $this->reporter->report($cloneGroups, 1.23);
-            self::assertStringContainsString('Clone Group #1', $result);
+            self::assertStringContainsString('Clone #1', $result);
         }
     }
 
