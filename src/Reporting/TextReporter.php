@@ -30,6 +30,7 @@ final class TextReporter
 
     public function __construct(
         private readonly SyntaxHighlighter $highlighter,
+        private readonly ?string $editorUrl = null,
     )
     {
         $cwd = getcwd();
@@ -101,6 +102,36 @@ final class TextReporter
     }
 
     /**
+     * Wrap text in an OSC 8 hyperlink if editor URL is configured and colors are enabled
+     */
+    private function makeClickable(
+        string $text,
+        string $filePath,
+        int $line,
+    ): string
+    {
+        if ($this->editorUrl === null) {
+            return $text;
+        }
+
+        if (!$this->highlighter->isEnabled()) {
+            return $text;
+        }
+
+        $absolutePath = str_starts_with($filePath, '/')
+            ? $filePath
+            : $this->basePath . '/' . $filePath;
+
+        $url = str_replace(
+            ['{relFile}', '{file}', '{line}'],
+            [$this->relativizePath($filePath), $absolutePath, (string) $line],
+            $this->editorUrl,
+        );
+
+        return "\033]8;;{$url}\033\\{$text}\033]8;;\033\\";
+    }
+
+    /**
      * Format a single clone group for display
      */
     private function formatCloneGroup(
@@ -121,18 +152,20 @@ final class TextReporter
         );
 
         foreach ($subtrees as $subtree) {
+            $filePath = $subtree->getFilePath();
+            $startLine = $subtree->getStartLine();
+            $endLine = $subtree->getEndLine();
+
+            $formattedLocation = sprintf(
+                '%s:%d-%d',
+                $this->formatPath($filePath),
+                $startLine,
+                $endLine,
+            );
+
             $output[] = '';
-            $output[] = sprintf(
-                '  %s:%d-%d',
-                $this->formatPath($subtree->getFilePath()),
-                $subtree->getStartLine(),
-                $subtree->getEndLine(),
-            );
-            $output[] = $this->formatCode(
-                $subtree->getFilePath(),
-                $subtree->getStartLine(),
-                $subtree->getEndLine(),
-            );
+            $output[] = '  ' . $this->makeClickable($formattedLocation, $filePath, $startLine);
+            $output[] = $this->formatCode($filePath, $startLine, $endLine);
         }
 
         return implode("\n", $output);

@@ -117,6 +117,11 @@ final class SyntaxHighlighter
         $this->initializeTokenColors();
     }
 
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
+
     /**
      * Initialize token to color mapping
      */

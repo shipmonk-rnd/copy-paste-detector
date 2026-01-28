@@ -4,3 +4,4 @@
 /.idea
 /phpstan.neon
 /phpunit.xml
+/copy-paste-detector.local.php

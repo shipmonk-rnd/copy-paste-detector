@@ -154,7 +154,7 @@ HELP,);
         $cloneGroups = $this->detectClones($files, $config, $minNodeCount, $cacheDir, $stderr);
         $elapsedTime = microtime(true) - $startTime;
 
-        $this->outputReport($cloneGroups, $elapsedTime, $output);
+        $this->outputReport($cloneGroups, $elapsedTime, $output, $config->getEditorUrl());
 
         return count($cloneGroups) === 0 ? Command::SUCCESS : Command::FAILURE;
     }
@@ -440,10 +440,11 @@ HELP,);
         array $cloneGroups,
         float $elapsedTime,
         OutputInterface $output,
+        ?string $editorUrl,
     ): void
     {
         $highlighter = new SyntaxHighlighter($output->isDecorated());
-        $reporter = new TextReporter($highlighter);
+        $reporter = new TextReporter($highlighter, $editorUrl);
         $report = $reporter->report($cloneGroups, $elapsedTime);
 
         $output->writeln($report);

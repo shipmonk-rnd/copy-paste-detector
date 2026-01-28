@@ -8,4 +8,9 @@ $config->setExcludePaths(['tests/_fixtures']);
 $config->setCacheDir(__DIR__ . '/cache/self');
 $config->setMinNodeCount(30);
 
+$localConfig = __DIR__ . '/copy-paste-detector.local.php';
+if (is_file($localConfig)) {
+    require $localConfig; // handy for $config->setEditorUrl()
+}
+
 return $config;

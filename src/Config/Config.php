@@ -25,6 +25,8 @@ final class Config
      */
     private array $excludePaths = [];
 
+    private ?string $editorUrl = null;
+
     private bool $anonymizeVariables = true;
     private bool $anonymizeLiterals = false;
     private bool $anonymizeNames = false;
@@ -103,6 +105,25 @@ final class Config
     }
 
     /**
+     * Set the editor URL pattern to make filepaths clickable in CLI output via OSC 8 hyperlink.
+     *
+     * Available placeholders:
+     * - {file} - Absolute file path
+     * - {relFile} - Relative file path (from current working directory)
+     * - {line} - Line number
+     *
+     * Common editor URL patterns:
+     * - PHPStorm: phpstorm://open?file={file}&line={line}
+     * - VS Code: vscode://file/{file}:{line}
+     * - Sublime: subl://open?url=file://{file}&line={line}
+     */
+    public function setEditorUrl(string $editorUrl): self
+    {
+        $this->editorUrl = $editorUrl;
+        return $this;
+    }
+
+    /**
      * Enable or disable variable name anonymization.
      * When enabled, variable names like $foo, $bar will be treated as equivalent (default: true).
      */
@@ -150,6 +171,11 @@ final class Config
     public function getCacheDir(): ?string
     {
         return $this->cacheDir;
+    }
+
+    public function getEditorUrl(): ?string
+    {
+        return $this->editorUrl;
     }
 
     /**

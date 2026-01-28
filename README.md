@@ -59,6 +59,9 @@ $config->setCacheDir('cache/copy-paste-detector/');
 // Exclude paths from analysis
 $config->setExcludePaths(['tests/_fixtures', 'src/Generated/']);
 
+// Enable clickable links to your IDE
+$config->setEditorUrl('phpstorm://open?file={file}&line={line}');
+
 // Configure anonymization strategies
 $config->setAnonymizeVariables(true); // treat variable names like `$foo` and `$bar` as equivalent
 $config->setAnonymizeLiterals(false); // treat string and number literals as equivalent
