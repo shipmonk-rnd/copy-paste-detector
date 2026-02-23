@@ -3,6 +3,7 @@
 namespace ShipMonk\CopyPasteDetector\Reporting;
 
 use LogicException;
+use ShipMonk\CopyPasteDetector\AST\Subtree;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
 use function array_slice;
 use function count;
@@ -31,6 +32,7 @@ final class TextReporter
 
     public function __construct(
         private readonly SyntaxHighlighter $highlighter,
+        private readonly LineDiffer $lineDiffer,
         private readonly ?string $editorUrl = null,
     )
     {
@@ -146,14 +148,27 @@ final class TextReporter
         $instanceCount = $group->getInstanceCount();
         $nodeCount = $group->getNodeCount();
 
+        // Collect all code lines from all instances for diff comparison
+        $allInstanceLines = $this->collectInstanceLines($subtrees);
+        $diffRangesPerInstance = $this->lineDiffer->computeDiffRanges($allInstanceLines);
+
+        $isExactMatch = $this->isExactMatch($allInstanceLines);
+
         $output = [];
-        $output[] = sprintf(
+        $statusLine = sprintf(
             '  Clone #%d  %d nodes · %d instances',
             $index,
             $nodeCount,
             $instanceCount,
         );
 
+        if ($isExactMatch) {
+            $statusLine .= ' · exact match';
+        }
+
+        $output[] = $statusLine;
+
+        $instanceIndex = 0;
         foreach ($subtrees as $subtree) {
             $filePath = $subtree->getFilePath();
             $startLine = $subtree->getStartLine();
@@ -168,19 +183,71 @@ final class TextReporter
 
             $output[] = '';
             $output[] = '  ' . $this->makeClickable($formattedLocation, $filePath, $startLine);
-            $output[] = $this->formatCode($filePath, $startLine, $endLine);
+            $diffRanges = $diffRangesPerInstance[$instanceIndex] ?? [];
+            $output[] = $this->formatCodeWithDiffs(
+                $filePath,
+                $startLine,
+                $endLine,
+                $diffRanges,
+            );
+            $instanceIndex++;
         }
 
         return implode("\n", $output);
     }
 
     /**
-     * Format source code with syntax highlighting
+     * Check if all instances have identical source code
+     *
+     * @param list<list<string>> $allInstanceLines
      */
-    private function formatCode(
+    private function isExactMatch(array $allInstanceLines): bool
+    {
+        if (count($allInstanceLines) < 2) {
+            return true;
+        }
+
+        $first = $allInstanceLines[0];
+
+        for ($i = 1; $i < count($allInstanceLines); $i++) {
+            if ($allInstanceLines[$i] !== $first) { // @phpstan-ignore offsetAccess.notFound
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Collect code lines from all subtrees
+     *
+     * @param list<Subtree> $subtrees
+     * @return list<list<string>>
+     */
+    private function collectInstanceLines(array $subtrees): array
+    {
+        $allLines = [];
+        foreach ($subtrees as $subtree) {
+            $code = $this->readOriginalSource(
+                $subtree->getFilePath(),
+                $subtree->getStartLine(),
+                $subtree->getEndLine(),
+            );
+            $allLines[] = explode("\n", $code);
+        }
+        return $allLines;
+    }
+
+    /**
+     * Format source code with syntax highlighting and diff highlighting
+     *
+     * @param list<list<array{int, int}>> $diffRangesPerLine Diff ranges for each line
+     */
+    private function formatCodeWithDiffs(
         string $filePath,
         int $startLine,
         int $endLine,
+        array $diffRangesPerLine,
     ): string
     {
         $code = $this->readOriginalSource($filePath, $startLine, $endLine);
@@ -194,7 +261,12 @@ final class TextReporter
         }
 
         foreach ($lines as $i => $line) {
-            $highlightedLine = $this->highlighter->highlight($line);
+            $diffRanges = $diffRangesPerLine[$i] ?? [];
+            if ($diffRanges !== []) {
+                $highlightedLine = $this->highlighter->highlightWithDiffs($line, $diffRanges);
+            } else {
+                $highlightedLine = $this->highlighter->highlight($line);
+            }
             $lineNum = $this->highlighter->formatLineNumber($startLine + $i, $width);
             $separator = $this->highlighter->formatDim("\u{2502}");
             $formatted[] = sprintf('  %s %s %s', $lineNum, $separator, $highlightedLine);

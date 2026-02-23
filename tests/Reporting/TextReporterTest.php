@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use ShipMonk\CopyPasteDetector\Config\Config;
 use ShipMonk\CopyPasteDetector\Detection\CloneDetector;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
+use ShipMonk\CopyPasteDetector\Reporting\LineDiffer;
 use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
 use ShipMonk\CopyPasteDetector\Reporting\TextReporter;
 use ShipMonk\CopyPasteDetectorTests\Helpers\TestDirectoryHelper;
@@ -27,7 +28,7 @@ final class TextReporterTest extends TestCase
         mkdir($this->tempDir, 0755, true);
 
         $highlighter = new SyntaxHighlighter(enabled: false);
-        $this->reporter = new TextReporter($highlighter);
+        $this->reporter = new TextReporter($highlighter, new LineDiffer());
     }
 
     protected function tearDown(): void
@@ -171,7 +172,7 @@ final class TextReporterTest extends TestCase
     public function testReportWithSyntaxHighlightingDisabled(): void
     {
         $highlighter = new SyntaxHighlighter(enabled: false);
-        $reporter = new TextReporter($highlighter);
+        $reporter = new TextReporter($highlighter, new LineDiffer());
 
         $file1 = $this->createTempFile('no_color1.php', '<?php
             $x = 1;

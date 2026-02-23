@@ -12,6 +12,7 @@ use ShipMonk\CopyPasteDetector\Config\ResolvedConfig;
 use ShipMonk\CopyPasteDetector\Detection\CloneDetector;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
 use ShipMonk\CopyPasteDetector\Exception\ErrorException;
+use ShipMonk\CopyPasteDetector\Reporting\LineDiffer;
 use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
 use ShipMonk\CopyPasteDetector\Reporting\TextReporter;
 use SplFileInfo;
@@ -444,7 +445,7 @@ HELP,);
     ): void
     {
         $highlighter = new SyntaxHighlighter($output->isDecorated());
-        $reporter = new TextReporter($highlighter, $editorUrl);
+        $reporter = new TextReporter($highlighter, new LineDiffer(), $editorUrl);
         $report = $reporter->report($cloneGroups, $elapsedTime);
 
         $output->writeln($report);

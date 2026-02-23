@@ -9,6 +9,7 @@ use function in_array;
 use function is_string;
 use function sprintf;
 use function str_starts_with;
+use function strlen;
 use function strtolower;
 use function token_get_all;
 use function trim;
@@ -95,7 +96,7 @@ final class SyntaxHighlighter
 
     // ANSI color codes
     private const COLOR_RESET = "\033[0m";
-    private const COLOR_KEYWORD = "\033[34m"; // Blue
+    private const COLOR_KEYWORD = "\033[94m"; // Bright blue
     private const COLOR_STRING = "\033[32m"; // Green
     private const COLOR_VARIABLE = "\033[36m"; // Cyan
     private const COLOR_COMMENT = "\033[90m"; // Gray
@@ -103,6 +104,7 @@ final class SyntaxHighlighter
     private const COLOR_TYPE = "\033[35m"; // Magenta
     private const COLOR_DIM = "\033[2m"; // Dim
     private const FORMAT_BOLD = "\033[1m"; // Bold
+    private const DIFF_HIGHLIGHT = "\033[48;5;235m"; // Dark gray background for diff highlighting
 
     private bool $enabled;
 
@@ -318,6 +320,96 @@ final class SyntaxHighlighter
     {
         $formatted = sprintf('%' . $width . 'd', $lineNumber);
         return $this->formatDim($formatted);
+    }
+
+    /**
+     * Highlight PHP code with ANSI colors and background highlighting for diff ranges
+     *
+     * @param list<array{int, int}> $diffRanges Array of [start, end] character positions to highlight
+     */
+    public function highlightWithDiffs(
+        string $code,
+        array $diffRanges,
+    ): string
+    {
+        if (!$this->enabled || $diffRanges === []) {
+            return $this->highlight($code);
+        }
+
+        // Add PHP tags if not present (required for tokenization)
+        $needsTag = !str_starts_with(trim($code), '<?');
+        if ($needsTag) {
+            $code = '<?php ' . $code;
+        }
+
+        $tokens = token_get_all($code);
+        if ($tokens === []) {
+            throw new LogicException('Failed to tokenize PHP code for syntax highlighting');
+        }
+
+        $result = '';
+        $currentPos = 0;
+
+        foreach ($tokens as $i => $token) {
+            if (is_string($token)) {
+                $tokenText = $token;
+                $tokenType = null;
+            } else {
+                [$tokenType, $tokenText] = $token;
+
+                // Skip PHP opening tag if we added it
+                if ($needsTag && $tokenType === T_OPEN_TAG) {
+                    continue;
+                }
+            }
+
+            $tokenLen = strlen($tokenText);
+
+            // Get color for this token
+            $color = null;
+            if ($tokenType !== null) {
+                $color = $this->getTokenColor($tokenType, $tokenText, $tokens, $i);
+            }
+
+            // Check if this token overlaps with any diff range
+            $inDiffRange = $this->isInDiffRange($currentPos, $currentPos + $tokenLen, $diffRanges);
+
+            if ($inDiffRange) {
+                if ($color !== null) {
+                    $result .= self::DIFF_HIGHLIGHT . $color . $tokenText . self::COLOR_RESET;
+                } else {
+                    $result .= self::DIFF_HIGHLIGHT . $tokenText . self::COLOR_RESET;
+                }
+            } elseif ($color !== null) {
+                $result .= $color . $tokenText . self::COLOR_RESET;
+            } else {
+                $result .= $tokenText;
+            }
+
+            $currentPos += $tokenLen;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Check if a range overlaps with any diff range
+     *
+     * @param list<array{int, int}> $diffRanges
+     */
+    private function isInDiffRange(
+        int $start,
+        int $end,
+        array $diffRanges,
+    ): bool
+    {
+        foreach ($diffRanges as [$rangeStart, $rangeEnd]) {
+            // Check for overlap
+            if ($start < $rangeEnd && $end > $rangeStart) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }
