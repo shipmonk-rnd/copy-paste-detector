@@ -210,7 +210,7 @@ final class TextReporter
         $first = $allInstanceLines[0];
 
         for ($i = 1; $i < count($allInstanceLines); $i++) {
-            if ($allInstanceLines[$i] !== $first) { // @phpstan-ignore offsetAccess.notFound
+            if ($allInstanceLines[$i] !== $first) {
                 return false;
             }
         }
