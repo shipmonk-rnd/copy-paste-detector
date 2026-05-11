@@ -408,7 +408,9 @@ final class TextReporter
                 $output[] = sprintf('  %s %s ', $blankColumn, $separator);
                 continue;
             }
-            $highlighted = $row['ranges'] !== []
+            // Char-level diff highlighting is reserved for alternative variants — the main
+            // (first) variant at each divergent position renders as ordinary code.
+            $highlighted = ($row['applyLineBg'] && $row['ranges'] !== [])
                 ? $this->highlighter->highlightWithDiffs($row['text'], $row['ranges'])
                 : $this->highlighter->highlight($row['text']);
             $rowText = sprintf(

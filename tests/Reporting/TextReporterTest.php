@@ -447,13 +447,19 @@ final class TextReporterTest extends TestCase
         self::assertCount(2, $mainDivergentLines, 'Two main divergent rows ($doubled = ... and return $doubled;)');
         self::assertCount(2, $alternativeDivergentLines, 'Two alternative divergent rows ($tripled = ... and return $tripled;)');
 
+        $charDiffBg = "\033[48;5;238m";
+
         self::assertStringNotContainsString($lineBg, $commonLine, 'Common row must not carry the line bg');
+        self::assertStringNotContainsString($charDiffBg, $commonLine, 'Common row must not carry the char-level diff highlight');
+
         foreach ($mainDivergentLines as $mainLine) {
             self::assertStringNotContainsString($lineBg, $mainLine, 'Main divergent row must not carry the line bg');
+            self::assertStringNotContainsString($charDiffBg, $mainLine, 'Main divergent row must render as ordinary code, with no word-diff highlight');
         }
         foreach ($alternativeDivergentLines as $altLine) {
             self::assertStringContainsString($lineBg, $altLine, 'Alternative divergent row must carry the line bg');
             self::assertStringStartsWith($lineBg, $altLine, 'Line bg must extend all the way to the left, including over the line number');
+            self::assertStringContainsString($charDiffBg, $altLine, 'Alternative divergent row should mark differing characters');
         }
     }
 
