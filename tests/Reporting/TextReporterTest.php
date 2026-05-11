@@ -312,10 +312,7 @@ final class TextReporterTest extends TestCase
         $file1 = $this->createTempFile('unified1.php', $file1Content);
         $file2 = $this->createTempFile('unified2.php', $file2Content);
 
-        $group = new CloneGroup([
-            new Subtree($file1, 10, 12, 10, 'h1'),
-            new Subtree($file2, 20, 22, 10, 'h1'),
-        ]);
+        $group = $this->cloneGroup([[$file1, 10, 12], [$file2, 20, 22]]);
 
         $result = $this->reporter->report([$group], 0.5);
 
@@ -341,11 +338,7 @@ final class TextReporterTest extends TestCase
         $file2 = $this->createTempFile('three2.php', $body);
         $file3 = $this->createTempFile('three3.php', $body);
 
-        $group = new CloneGroup([
-            new Subtree($file1, 1, 3, 12, 'h1'),
-            new Subtree($file2, 1, 3, 12, 'h1'),
-            new Subtree($file3, 1, 3, 12, 'h1'),
-        ]);
+        $group = $this->cloneGroup([[$file1, 1, 3], [$file2, 1, 3], [$file3, 1, 3]]);
 
         $result = $this->reporter->report([$group], 0.5);
 
@@ -361,15 +354,56 @@ final class TextReporterTest extends TestCase
         self::assertStringContainsString('exact match', $result);
     }
 
+    public function testUnifiedViewDedentsInstancesToAlignDifferentIndentDepths(): void
+    {
+        // Two clones with the same content but different absolute indentation levels.
+        // After per-instance dedent they should align and collapse to a single common block.
+        $file1 = $this->createTempFile('dedent1.php', "    \$x = foo();\n    return \$x;\n");
+        $file2 = $this->createTempFile('dedent2.php', "                \$x = foo();\n                return \$x;\n");
+
+        $group = $this->cloneGroup([[$file1, 1, 2], [$file2, 1, 2]]);
+
+        $result = $this->reporter->report([$group], 0.5);
+
+        // Lines should appear exactly once each — i.e., common across instances after dedent.
+        self::assertSame(1, substr_count($result, '$x = foo();'));
+        self::assertSame(1, substr_count($result, 'return $x;'));
+
+        // No row should retain the deeper 16-space indent that only existed in instance 2.
+        self::assertStringNotContainsString('                $x', $result);
+        self::assertStringNotContainsString('                return', $result);
+
+        // Both instances are content-equal after dedent → exact match marker shows up.
+        self::assertStringContainsString('exact match', $result);
+    }
+
+    public function testUnifiedViewDedentsBeforeComputingDiffRanges(): void
+    {
+        // Same content but at different indent depths AND with one diverging variable name.
+        // After dedent, indentation is normalized; only the variable difference should remain.
+        $file1 = $this->createTempFile('difdent1.php', "    \$a = foo();\n    return \$a;\n");
+        $file2 = $this->createTempFile('difdent2.php', "            \$b = foo();\n            return \$b;\n");
+
+        $group = $this->cloneGroup([[$file1, 1, 2], [$file2, 1, 2]]);
+
+        $result = $this->reporter->report([$group], 0.5);
+
+        // Each divergent line shows up once, with its own source line number, and no extra indent.
+        self::assertMatchesRegularExpression('/\s1\s+\x{2502}\s\$a = foo\(\);/u', $result);
+        self::assertMatchesRegularExpression('/\s1\s+\x{2502}\s\$b = foo\(\);/u', $result);
+        self::assertMatchesRegularExpression('/\s2\s+\x{2502}\sreturn \$a;/u', $result);
+        self::assertMatchesRegularExpression('/\s2\s+\x{2502}\sreturn \$b;/u', $result);
+
+        // Deeper 12-space indent of instance 2 must be stripped.
+        self::assertStringNotContainsString('            $b', $result);
+    }
+
     public function testUnifiedViewFallsBackWhenContentLineCountsDiffer(): void
     {
         $file1 = $this->createTempFile('fb1.php', "<?php\n\$a = 1;\n\$b = 2;\n\$c = 3;\n");
         $file2 = $this->createTempFile('fb2.php', "<?php\n\$a = 1;\n\$b = 2;\n");
 
-        $group = new CloneGroup([
-            new Subtree($file1, 2, 4, 6, 'h1'),
-            new Subtree($file2, 2, 3, 6, 'h1'),
-        ]);
+        $group = $this->cloneGroup([[$file1, 2, 4], [$file2, 2, 3]]);
 
         $result = $this->reporter->report([$group], 0.5);
 
@@ -377,6 +411,18 @@ final class TextReporterTest extends TestCase
         self::assertMatchesRegularExpression('/\s2\s+\x{2502}\s+\$a = 1;/u', $result);
         self::assertMatchesRegularExpression('/\s3\s+\x{2502}\s+\$b = 2;/u', $result);
         self::assertMatchesRegularExpression('/\s4\s+\x{2502}\s+\$c = 3;/u', $result);
+    }
+
+    /**
+     * @param non-empty-list<array{string, int, int}> $specs [file path, startLine, endLine] per instance
+     */
+    private function cloneGroup(array $specs): CloneGroup
+    {
+        $subtrees = [];
+        foreach ($specs as $spec) {
+            $subtrees[] = new Subtree($spec[0], $spec[1], $spec[2], 5, 'h');
+        }
+        return new CloneGroup($subtrees);
     }
 
     private function createTempFile(

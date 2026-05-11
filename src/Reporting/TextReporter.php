@@ -12,6 +12,7 @@ use function explode;
 use function file;
 use function getcwd;
 use function implode;
+use function min;
 use function realpath;
 use function rtrim;
 use function sprintf;
@@ -151,6 +152,7 @@ final class TextReporter
         $nodeCount = $group->getNodeCount();
 
         $allInstanceLines = $this->collectInstanceLines($subtrees);
+        $allInstanceLines = $this->dedentInstanceLines($allInstanceLines);
         $diffRangesPerInstance = $this->lineDiffer->computeDiffRanges($allInstanceLines);
         $isExactMatch = $this->isExactMatch($allInstanceLines);
 
@@ -244,6 +246,89 @@ final class TextReporter
             $allLines[] = explode("\n", $code);
         }
         return $allLines;
+    }
+
+    /**
+     * Strip the longest leading-whitespace prefix common to each instance's
+     * non-blank lines. Snippets that live at different indentation depths in
+     * their source files end up aligned at column 0 in the unified view while
+     * relative indentation within a snippet is preserved.
+     *
+     * @param list<list<string>> $allInstanceLines
+     * @return list<list<string>>
+     */
+    private function dedentInstanceLines(array $allInstanceLines): array
+    {
+        $result = [];
+        foreach ($allInstanceLines as $instanceLines) {
+            $result[] = $this->dedentLines($instanceLines);
+        }
+        return $result;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function dedentLines(array $lines): array
+    {
+        $prefix = null;
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+            $leading = $this->extractLeadingWhitespace($line);
+            if ($prefix === null) {
+                $prefix = $leading;
+                continue;
+            }
+            $prefix = $this->commonStringPrefix($prefix, $leading);
+            if ($prefix === '') {
+                return $lines;
+            }
+        }
+
+        if ($prefix === null || $prefix === '') {
+            return $lines;
+        }
+
+        $prefixLen = strlen($prefix);
+        $dedented = [];
+        foreach ($lines as $line) {
+            if (str_starts_with($line, $prefix)) {
+                $dedented[] = substr($line, $prefixLen);
+                continue;
+            }
+            // Pure-whitespace line shorter than the prefix; render as empty.
+            $dedented[] = '';
+        }
+        return $dedented;
+    }
+
+    private function extractLeadingWhitespace(string $line): string
+    {
+        $len = strlen($line);
+        for ($i = 0; $i < $len; $i++) {
+            $char = $line[$i];
+            if ($char !== ' ' && $char !== "\t") {
+                return substr($line, 0, $i);
+            }
+        }
+        return $line;
+    }
+
+    private function commonStringPrefix(
+        string $a,
+        string $b,
+    ): string
+    {
+        $minLen = min(strlen($a), strlen($b));
+        for ($i = 0; $i < $minLen; $i++) {
+            if ($a[$i] !== $b[$i]) {
+                return substr($a, 0, $i);
+            }
+        }
+        return substr($a, 0, $minLen);
     }
 
     /**
