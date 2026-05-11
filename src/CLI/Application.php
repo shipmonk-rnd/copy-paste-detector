@@ -8,6 +8,7 @@ use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 use Symfony\Component\Console\Application as BaseApplication;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
+use function method_exists;
 
 /**
  * CLI Application for Copy-Paste Detector
@@ -21,7 +22,8 @@ final class Application extends BaseApplication
 
         parent::__construct('Copy Paste Detector', $version);
 
-        $this->addCommand(new DetectCommand());
+        $addCommand = method_exists($this, 'addCommand') ? 'addCommand' : 'add';
+        $this->$addCommand(new DetectCommand());
         $this->setDefaultCommand('detect', true);
     }
 
