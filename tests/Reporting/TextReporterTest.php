@@ -398,6 +398,37 @@ final class TextReporterTest extends TestCase
         self::assertStringNotContainsString('            $b', $result);
     }
 
+    public function testUnifiedViewDedupsIdenticalVariantsAtDivergentPosition(): void
+    {
+        // Three instances; instance 1 and instance 3 share identical content on the divergent
+        // line, instance 2 differs. The divergent position should render two rows (not three),
+        // with the merged row carrying both source line numbers.
+        $sharedBody = "    \$result = compute();\n    return \$result;\n";
+        $file1 = $this->createTempFile('dedup1.php', $sharedBody);
+        $file2 = $this->createTempFile('dedup2.php', "    \$other = compute();\n    return \$other;\n");
+        $file3 = $this->createTempFile('dedup3.php', str_repeat("// pad\n", 9) . $sharedBody);
+
+        $group = $this->cloneGroup([
+            [$file1, 1, 2],
+            [$file2, 1, 2],
+            [$file3, 10, 11],
+        ]);
+
+        $result = $this->reporter->report([$group], 0.5);
+
+        // Merged label "1, 10" for the shared variant from instance 1 (line 1) and instance 3 (line 10).
+        self::assertMatchesRegularExpression('/1,\s10\s+\x{2502}\s+\$result = compute\(\);/u', $result);
+        self::assertMatchesRegularExpression('/2,\s11\s+\x{2502}\s+return \$result;/u', $result);
+
+        // Instance 2's variant rendered separately, padded to the same label width.
+        self::assertMatchesRegularExpression('/\s+1\s+\x{2502}\s+\$other = compute\(\);/u', $result);
+        self::assertMatchesRegularExpression('/\s+2\s+\x{2502}\s+return \$other;/u', $result);
+
+        // Each shared variant text appears exactly once after dedup.
+        self::assertSame(1, substr_count($result, '$result = compute();'));
+        self::assertSame(1, substr_count($result, 'return $result;'));
+    }
+
     public function testUnifiedViewFallsBackWhenContentLineCountsDiffer(): void
     {
         $file1 = $this->createTempFile('fb1.php', "<?php\n\$a = 1;\n\$b = 2;\n\$c = 3;\n");

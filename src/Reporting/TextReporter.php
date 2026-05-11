@@ -12,6 +12,7 @@ use function explode;
 use function file;
 use function getcwd;
 use function implode;
+use function max;
 use function min;
 use function realpath;
 use function rtrim;
@@ -374,18 +375,79 @@ final class TextReporter
             }
         }
 
-        $separator = $this->highlighter->formatDim("\u{2502}");
-        $blankColumn = str_repeat(' ', $lineNumberWidth);
         $firstSubtree = $subtrees[0] ?? null;
         if ($firstSubtree === null) {
             throw new LogicException('Unified rendering: clone group with no instances');
         }
 
+        $rows = $this->buildUnifiedRows(
+            $subtrees,
+            $allInstanceLines,
+            $diffRangesPerInstance,
+            $contentLineIdxsPerInstance,
+            $firstSubtree,
+        );
+
+        $labelWidth = $lineNumberWidth;
+        foreach ($rows as $row) {
+            if ($row['kind'] !== 'code') {
+                continue;
+            }
+            $width = $this->lineNumbersVisualWidth($row['lineNums']);
+            if ($width > $labelWidth) {
+                $labelWidth = $width;
+            }
+        }
+
+        $separator = $this->highlighter->formatDim("\u{2502}");
+        $blankColumn = str_repeat(' ', $labelWidth);
+
         $output = [];
+        foreach ($rows as $row) {
+            if ($row['kind'] === 'blank') {
+                $output[] = sprintf('  %s %s ', $blankColumn, $separator);
+                continue;
+            }
+            $highlighted = $row['ranges'] !== []
+                ? $this->highlighter->highlightWithDiffs($row['text'], $row['ranges'])
+                : $this->highlighter->highlight($row['text']);
+            $output[] = sprintf(
+                '  %s %s %s',
+                $this->formatLineLabel($row['lineNums'], $labelWidth),
+                $separator,
+                $highlighted,
+            );
+        }
+
+        return implode("\n", $output);
+    }
+
+    /**
+     * Build the structured rows that make up the unified code block.
+     *
+     * Common lines collapse to a single row using the first instance's source line.
+     * Divergent positions split into one row per unique (post-dedent) text; the row's
+     * label lists every instance line that produced that text, in instance order.
+     *
+     * @param list<Subtree> $subtrees
+     * @param non-empty-list<list<string>> $allInstanceLines
+     * @param list<list<list<array{int, int}>>> $diffRangesPerInstance
+     * @param non-empty-list<list<int>> $contentLineIdxsPerInstance
+     * @return list<array{kind: 'blank'} | array{kind: 'code', lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>}>
+     */
+    private function buildUnifiedRows(
+        array $subtrees,
+        array $allInstanceLines,
+        array $diffRangesPerInstance,
+        array $contentLineIdxsPerInstance,
+        Subtree $firstSubtree,
+    ): array
+    {
+        $rows = [];
         $contentIdx = 0;
         foreach ($allInstanceLines[0] as $lineIdx => $line) {
             if (trim($line) === '') {
-                $output[] = sprintf('  %s %s ', $blankColumn, $separator);
+                $rows[] = ['kind' => 'blank'];
                 continue;
             }
 
@@ -397,8 +459,7 @@ final class TextReporter
             );
             $contentIdx++;
 
-            $firstVariant = $variants[0];
-            $firstTrimmed = trim($firstVariant[1]);
+            $firstTrimmed = trim($variants[0][1]);
             $allSame = true;
             foreach ($variants as $variant) {
                 if (trim($variant[1]) !== $firstTrimmed) {
@@ -409,49 +470,98 @@ final class TextReporter
 
             if ($allSame) {
                 $sourceLine = $firstSubtree->getStartLine() + $lineIdx;
-                $output[] = sprintf(
-                    '  %s %s %s',
-                    $this->formatSourceLineNumber($firstSubtree, $sourceLine, $lineNumberWidth),
-                    $separator,
-                    $this->highlighter->highlight($firstVariant[1]),
-                );
+                $rows[] = [
+                    'kind' => 'code',
+                    'lineNums' => [[$firstSubtree, $sourceLine]],
+                    'text' => $variants[0][1],
+                    'ranges' => [],
+                ];
                 continue;
             }
 
-            foreach ($variants as [$instIdx, $instLine, $ranges, $origLineIdx]) {
+            /** @var list<array{lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>}> $orderedGroups */
+            $orderedGroups = [];
+            /** @var array<string, int> $groupIndexByKey */
+            $groupIndexByKey = [];
+            foreach ($variants as [$instIdx, $instText, $ranges, $origLineIdx]) {
                 $subtree = $subtrees[$instIdx] ?? null;
                 if ($subtree === null) {
                     throw new LogicException('Unified rendering: variant points to missing subtree');
                 }
                 $sourceLine = $subtree->getStartLine() + $origLineIdx;
-                if ($ranges !== []) {
-                    $highlighted = $this->highlighter->highlightWithDiffs($instLine, $ranges);
-                } else {
-                    $highlighted = $this->highlighter->highlight($instLine);
+                $key = trim($instText);
+                if (!array_key_exists($key, $groupIndexByKey)) {
+                    $groupIndexByKey[$key] = count($orderedGroups);
+                    $orderedGroups[] = [
+                        'lineNums' => [[$subtree, $sourceLine]],
+                        'text' => $instText,
+                        'ranges' => $ranges,
+                    ];
+                    continue;
                 }
-                $output[] = sprintf(
-                    '  %s %s %s',
-                    $this->formatSourceLineNumber($subtree, $sourceLine, $lineNumberWidth),
-                    $separator,
-                    $highlighted,
-                );
+                $idx = $groupIndexByKey[$key];
+                if (!array_key_exists($idx, $orderedGroups)) {
+                    throw new LogicException('Unified rendering: group index out of range');
+                }
+                $existing = $orderedGroups[$idx];
+                $appendedLineNums = $existing['lineNums'];
+                $appendedLineNums[] = [$subtree, $sourceLine];
+                $orderedGroups[$idx] = [
+                    'lineNums' => $appendedLineNums,
+                    'text' => $existing['text'],
+                    'ranges' => $existing['ranges'],
+                ];
+            }
+            foreach ($orderedGroups as $group) {
+                $rows[] = [
+                    'kind' => 'code',
+                    'lineNums' => $group['lineNums'],
+                    'text' => $group['text'],
+                    'ranges' => $group['ranges'],
+                ];
             }
         }
 
-        return implode("\n", $output);
+        return $rows;
     }
 
     /**
-     * Format a source line number, optionally wrapped in a clickable hyperlink.
+     * Visual character width of a line-number label like "47, 59".
+     *
+     * @param non-empty-list<array{Subtree, int}> $lineNums
      */
-    private function formatSourceLineNumber(
-        Subtree $subtree,
-        int $sourceLine,
-        int $width,
+    private function lineNumbersVisualWidth(array $lineNums): int
+    {
+        $width = 0;
+        foreach ($lineNums as $i => $pair) {
+            if ($i > 0) {
+                $width += 2; // ", "
+            }
+            $width += strlen((string) $pair[1]);
+        }
+        return $width;
+    }
+
+    /**
+     * Format a line-number label, right-aligned within the given total width. Multiple
+     * source line numbers are joined with ", " and each is independently clickable.
+     *
+     * @param non-empty-list<array{Subtree, int}> $lineNums
+     */
+    private function formatLineLabel(
+        array $lineNums,
+        int $totalWidth,
     ): string
     {
-        $formatted = $this->highlighter->formatLineNumber($sourceLine, $width);
-        return $this->makeClickable($formatted, $subtree->getFilePath(), $sourceLine);
+        $parts = [];
+        foreach ($lineNums as [$subtree, $sourceLine]) {
+            $digits = strlen((string) $sourceLine);
+            $formatted = $this->highlighter->formatLineNumber($sourceLine, $digits);
+            $parts[] = $this->makeClickable($formatted, $subtree->getFilePath(), $sourceLine);
+        }
+        $joined = implode(', ', $parts);
+        $padding = str_repeat(' ', max(0, $totalWidth - $this->lineNumbersVisualWidth($lineNums)));
+        return $padding . $joined;
     }
 
     /**
@@ -518,7 +628,7 @@ final class TextReporter
                 $sourceLine = $subtree->getStartLine() + $lineIdx;
                 $output[] = sprintf(
                     '  %s %s %s',
-                    $this->formatSourceLineNumber($subtree, $sourceLine, $lineNumberWidth),
+                    $this->formatLineLabel([[$subtree, $sourceLine]], $lineNumberWidth),
                     $separator,
                     $highlighted,
                 );
