@@ -196,6 +196,74 @@ final class TextReporterTest extends TestCase
         }
     }
 
+    public function testReportEmitsClickableHyperlinksWhenEditorUrlConfigured(): void
+    {
+        $highlighter = new SyntaxHighlighter(enabled: true);
+        $reporter = new TextReporter(
+            $highlighter,
+            new LineDiffer(),
+            editorUrl: 'phpstorm://open?file={file}&line={line}',
+        );
+
+        $file1 = $this->createTempFile('click1.php', '<?php
+            function alpha($a, $b) {
+                $sum = $a + $b;
+                $product = $a * $b;
+                return $sum + $product;
+            }
+        ');
+
+        $file2 = $this->createTempFile('click2.php', '<?php
+            function beta($x, $y) {
+                $sum = $x + $y;
+                $product = $x * $y;
+                return $sum + $product;
+            }
+        ');
+
+        $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 5);
+        self::assertNotEmpty($cloneGroups, 'Sanity: clones must be detected for this scenario');
+
+        $result = $reporter->report($cloneGroups, 0.5);
+
+        // OSC 8 hyperlink wrapper: ESC ] 8 ; ; URL ESC \ TEXT ESC ] 8 ; ; ESC \
+        self::assertStringContainsString("\033]8;;phpstorm://open?file=", $result);
+        self::assertStringContainsString('click1.php', $result);
+    }
+
+    public function testReportDoesNotEmitHyperlinksWhenHighlighterDisabled(): void
+    {
+        $highlighter = new SyntaxHighlighter(enabled: false);
+        $reporter = new TextReporter(
+            $highlighter,
+            new LineDiffer(),
+            editorUrl: 'phpstorm://open?file={file}&line={line}',
+        );
+
+        $file1 = $this->createTempFile('plain1.php', '<?php
+            function alpha($a, $b) {
+                $sum = $a + $b;
+                $product = $a * $b;
+                return $sum + $product;
+            }
+        ');
+
+        $file2 = $this->createTempFile('plain2.php', '<?php
+            function beta($x, $y) {
+                $sum = $x + $y;
+                $product = $x * $y;
+                return $sum + $product;
+            }
+        ');
+
+        $cloneGroups = $this->detectClones([$file1, $file2], minNodeCount: 5);
+        self::assertNotEmpty($cloneGroups);
+
+        $result = $reporter->report($cloneGroups, 0.5);
+
+        self::assertStringNotContainsString("\033]8;;", $result);
+    }
+
     public function testReportShowsNodeAndInstanceCount(): void
     {
         $file1 = $this->createTempFile('count1.php', '<?php
