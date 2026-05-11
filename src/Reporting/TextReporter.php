@@ -6,6 +6,7 @@ use LogicException;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
 use function array_key_exists;
+use function array_map;
 use function array_slice;
 use function array_values;
 use function count;
@@ -13,6 +14,7 @@ use function explode;
 use function file;
 use function getcwd;
 use function implode;
+use function ltrim;
 use function max;
 use function min;
 use function realpath;
@@ -154,11 +156,15 @@ final class TextReporter
         $nodeCount = $group->getNodeCount();
 
         $allInstanceLines = $this->collectInstanceLines($subtrees);
-        $allInstanceLines = $this->dedentInstanceLines($allInstanceLines);
+        $allInstanceLines = array_map($this->dedent(...), $allInstanceLines);
         $diffRangesPerInstance = $this->lineDiffer->computeDiffRanges($allInstanceLines);
         $isExactMatch = $this->isExactMatch($allInstanceLines);
 
-        $lineNumberWidth = $this->computeLineNumberWidth($subtrees);
+        $maxLine = 0;
+        foreach ($subtrees as $subtree) {
+            $maxLine = max($maxLine, $subtree->getEndLine());
+        }
+        $lineNumberWidth = max(3, strlen((string) $maxLine));
 
         $output = [];
         $statusLine = sprintf(
@@ -189,23 +195,6 @@ final class TextReporter
         $output[] = $this->renderUnifiedCode($subtrees, $allInstanceLines, $diffRangesPerInstance, $lineNumberWidth);
 
         return implode("\n", $output);
-    }
-
-    /**
-     * Determine the column width needed to print line numbers across all instances.
-     *
-     * @param list<Subtree> $subtrees
-     */
-    private function computeLineNumberWidth(array $subtrees): int
-    {
-        $maxLine = 0;
-        foreach ($subtrees as $subtree) {
-            if ($subtree->getEndLine() > $maxLine) {
-                $maxLine = $subtree->getEndLine();
-            }
-        }
-        $width = strlen((string) $maxLine);
-        return $width < 3 ? 3 : $width;
     }
 
     /**
@@ -251,40 +240,33 @@ final class TextReporter
     }
 
     /**
-     * Strip the longest leading-whitespace prefix common to each instance's
-     * non-blank lines. Snippets that live at different indentation depths in
-     * their source files end up aligned at column 0 in the unified view while
-     * relative indentation within a snippet is preserved.
+     * Strip the longest leading-whitespace prefix common to all non-blank lines so
+     * snippets at different indentation depths align at column 0 in the unified view
+     * while relative indentation within the snippet is preserved.
      *
-     * @param list<list<string>> $allInstanceLines
-     * @return list<list<string>>
-     */
-    private function dedentInstanceLines(array $allInstanceLines): array
-    {
-        $result = [];
-        foreach ($allInstanceLines as $instanceLines) {
-            $result[] = $this->dedentLines($instanceLines);
-        }
-        return $result;
-    }
-
-    /**
      * @param list<string> $lines
      * @return list<string>
      */
-    private function dedentLines(array $lines): array
+    private function dedent(array $lines): array
     {
         $prefix = null;
         foreach ($lines as $line) {
             if (trim($line) === '') {
                 continue;
             }
-            $leading = $this->extractLeadingWhitespace($line);
+            $leading = substr($line, 0, strlen($line) - strlen(ltrim($line, " \t")));
             if ($prefix === null) {
                 $prefix = $leading;
                 continue;
             }
-            $prefix = $this->commonStringPrefix($prefix, $leading);
+            $shorter = min(strlen($prefix), strlen($leading));
+            for ($i = 0; $i < $shorter; $i++) {
+                if ($prefix[$i] !== $leading[$i]) {
+                    $shorter = $i;
+                    break;
+                }
+            }
+            $prefix = substr($prefix, 0, $shorter);
             if ($prefix === '') {
                 return $lines;
             }
@@ -297,40 +279,10 @@ final class TextReporter
         $prefixLen = strlen($prefix);
         $dedented = [];
         foreach ($lines as $line) {
-            if (str_starts_with($line, $prefix)) {
-                $dedented[] = substr($line, $prefixLen);
-                continue;
-            }
-            // Pure-whitespace line shorter than the prefix; render as empty.
-            $dedented[] = '';
+            // Pure-whitespace lines shorter than the prefix render as empty.
+            $dedented[] = str_starts_with($line, $prefix) ? substr($line, $prefixLen) : '';
         }
         return $dedented;
-    }
-
-    private function extractLeadingWhitespace(string $line): string
-    {
-        $len = strlen($line);
-        for ($i = 0; $i < $len; $i++) {
-            $char = $line[$i];
-            if ($char !== ' ' && $char !== "\t") {
-                return substr($line, 0, $i);
-            }
-        }
-        return $line;
-    }
-
-    private function commonStringPrefix(
-        string $a,
-        string $b,
-    ): string
-    {
-        $minLen = min(strlen($a), strlen($b));
-        for ($i = 0; $i < $minLen; $i++) {
-            if ($a[$i] !== $b[$i]) {
-                return substr($a, 0, $i);
-            }
-        }
-        return substr($a, 0, $minLen);
     }
 
     /**
@@ -453,11 +405,13 @@ final class TextReporter
     }
 
     /**
-     * Build the structured rows that make up the unified code block.
+     * Walk instance 0's lines and build the unified row list.
      *
-     * Common lines collapse to a single row using the first instance's source line.
-     * Divergent positions split into one row per unique (post-dedent) text; the row's
-     * label lists every instance line that produced that text, in instance order.
+     * Common lines (whitespace-equal across instances) collapse into one row using
+     * the first instance's line number. Divergent positions split into one row per
+     * unique (post-dedent) text; the row's label lists every instance line that
+     * produced that text, in instance order. The first such row at a divergent
+     * position is the "main" reference; subsequent rows are flagged as alternatives.
      *
      * @param list<Subtree> $subtrees
      * @param non-empty-list<list<string>> $allInstanceLines
@@ -481,43 +435,43 @@ final class TextReporter
                 continue;
             }
 
-            $variants = $this->collectVariantsAtPosition(
-                $contentIdx,
-                $allInstanceLines,
-                $contentLineIdxsPerInstance,
-                $diffRangesPerInstance,
-            );
+            // Gather each instance's line at this content position. Indices are guaranteed
+            // valid by the alignment check in the caller.
+            /** @var non-empty-list<array{Subtree, int, string, list<array{int, int}>}> $variants */
+            $variants = [];
+            foreach ($contentLineIdxsPerInstance as $instIdx => $idxs) {
+                $origLineIdx = $idxs[$contentIdx]; // @phpstan-ignore offsetAccess.notFound
+                $instText = $allInstanceLines[$instIdx][$origLineIdx]; // @phpstan-ignore offsetAccess.notFound, offsetAccess.notFound
+                $ranges = $diffRangesPerInstance[$instIdx][$origLineIdx] ?? [];
+                $subtree = $subtrees[$instIdx]; // @phpstan-ignore offsetAccess.notFound
+                $variants[] = [$subtree, $subtree->getStartLine() + $origLineIdx, $instText, $ranges];
+            }
             $contentIdx++;
 
-            $firstTrimmed = trim($variants[0][1]);
+            $firstTrimmed = trim($variants[0][2]);
             $allSame = true;
             foreach ($variants as $variant) {
-                if (trim($variant[1]) !== $firstTrimmed) {
+                if (trim($variant[2]) !== $firstTrimmed) {
                     $allSame = false;
                     break;
                 }
             }
 
             if ($allSame) {
-                $sourceLine = $firstSubtree->getStartLine() + $lineIdx;
                 $rows[] = [
                     'kind' => 'code',
-                    'lineNums' => [[$firstSubtree, $sourceLine]],
-                    'text' => $variants[0][1],
+                    'lineNums' => [[$firstSubtree, $firstSubtree->getStartLine() + $lineIdx]],
+                    'text' => $variants[0][2],
                     'ranges' => [],
                     'alternative' => false,
                 ];
                 continue;
             }
 
+            // Dedup variants by trim()'d text, preserving insertion order.
             /** @var array<string, array{lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>}> $groupsByKey */
             $groupsByKey = [];
-            foreach ($variants as [$instIdx, $instText, $ranges, $origLineIdx]) {
-                $subtree = $subtrees[$instIdx] ?? null;
-                if ($subtree === null) {
-                    throw new LogicException('Unified rendering: variant points to missing subtree');
-                }
-                $sourceLine = $subtree->getStartLine() + $origLineIdx;
+            foreach ($variants as [$subtree, $sourceLine, $instText, $ranges]) {
                 $key = trim($instText);
                 if (!array_key_exists($key, $groupsByKey)) {
                     $groupsByKey[$key] = [
@@ -588,38 +542,6 @@ final class TextReporter
         $joined = implode(', ', $parts);
         $padding = str_repeat(' ', max(0, $totalWidth - $this->lineNumbersVisualWidth($lineNums)));
         return $padding . $joined;
-    }
-
-    /**
-     * Collect each instance's line at a given content position along with its diff ranges.
-     *
-     * @param list<list<string>> $allInstanceLines
-     * @param non-empty-list<list<int>> $contentLineIdxsPerInstance
-     * @param list<list<list<array{int, int}>>> $diffRangesPerInstance
-     * @return non-empty-list<array{int, string, list<array{int, int}>, int}>
-     */
-    private function collectVariantsAtPosition(
-        int $contentIdx,
-        array $allInstanceLines,
-        array $contentLineIdxsPerInstance,
-        array $diffRangesPerInstance,
-    ): array
-    {
-        $variants = [];
-        foreach ($contentLineIdxsPerInstance as $instIdx => $idxs) {
-            if (!array_key_exists($contentIdx, $idxs) || !array_key_exists($instIdx, $allInstanceLines)) {
-                throw new LogicException('Unified rendering: content alignment broke unexpectedly');
-            }
-            $origLineIdx = $idxs[$contentIdx];
-            $instanceLines = $allInstanceLines[$instIdx];
-            if (!array_key_exists($origLineIdx, $instanceLines)) {
-                throw new LogicException('Unified rendering: original line index missing');
-            }
-            $ranges = $diffRangesPerInstance[$instIdx][$origLineIdx] ?? [];
-            $variants[] = [$instIdx, $instanceLines[$origLineIdx], $ranges, $origLineIdx];
-        }
-
-        return $variants;
     }
 
     /**
