@@ -411,15 +411,16 @@ final class TextReporter
             $highlighted = $row['ranges'] !== []
                 ? $this->highlighter->highlightWithDiffs($row['text'], $row['ranges'])
                 : $this->highlighter->highlight($row['text']);
-            if ($row['applyLineBg']) {
-                $highlighted = $this->highlighter->applyDivergentLineBackground($highlighted);
-            }
-            $output[] = sprintf(
+            $rowText = sprintf(
                 '  %s %s %s',
                 $this->formatLineLabel($row['lineNums'], $labelWidth),
                 $separator,
                 $highlighted,
             );
+            if ($row['applyLineBg']) {
+                $rowText = $this->highlighter->applyDivergentLineBackground($rowText);
+            }
+            $output[] = $rowText;
         }
 
         return implode("\n", $output);
@@ -627,19 +628,20 @@ final class TextReporter
             }
             foreach ($instanceLines as $lineIdx => $line) {
                 $ranges = $diffRangesPerInstance[$i][$lineIdx] ?? [];
-                if ($ranges !== []) {
-                    $highlighted = $this->highlighter->highlightWithDiffs($line, $ranges);
-                    $highlighted = $this->highlighter->applyDivergentLineBackground($highlighted);
-                } else {
-                    $highlighted = $this->highlighter->highlight($line);
-                }
+                $highlighted = $ranges !== []
+                    ? $this->highlighter->highlightWithDiffs($line, $ranges)
+                    : $this->highlighter->highlight($line);
                 $sourceLine = $subtree->getStartLine() + $lineIdx;
-                $output[] = sprintf(
+                $rowText = sprintf(
                     '  %s %s %s',
                     $this->formatLineLabel([[$subtree, $sourceLine]], $lineNumberWidth),
                     $separator,
                     $highlighted,
                 );
+                if ($ranges !== []) {
+                    $rowText = $this->highlighter->applyDivergentLineBackground($rowText);
+                }
+                $output[] = $rowText;
             }
         }
         return implode("\n", $output);

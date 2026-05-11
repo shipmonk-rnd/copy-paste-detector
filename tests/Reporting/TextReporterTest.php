@@ -453,6 +453,7 @@ final class TextReporterTest extends TestCase
         }
         foreach ($alternativeDivergentLines as $altLine) {
             self::assertStringContainsString($lineBg, $altLine, 'Alternative divergent row must carry the line bg');
+            self::assertStringStartsWith($lineBg, $altLine, 'Line bg must extend all the way to the left, including over the line number');
         }
     }
 
