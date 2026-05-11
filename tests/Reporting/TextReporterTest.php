@@ -401,7 +401,7 @@ final class TextReporterTest extends TestCase
         self::assertStringNotContainsString('            $b', $result);
     }
 
-    public function testDivergentRowsGetLineBackgroundWhenColorsEnabled(): void
+    public function testOnlyAlternativeDivergentRowsGetLineBackgroundWhenColorsEnabled(): void
     {
         $highlighter = new SyntaxHighlighter(enabled: true);
         $reporter = new TextReporter($highlighter, new LineDiffer());
@@ -424,28 +424,35 @@ final class TextReporterTest extends TestCase
 
         $lineBg = "\033[48;5;235m";
 
-        // Strip ANSI from each line so we can match by code content, then check the original
-        // line for the line-bg sequence.
         $lines = explode("\n", $result);
         $stripAnsi = static fn (string $s): string => preg_replace('/\x1b\[[0-9;]*[A-Za-z]/', '', $s) ?? $s;
 
         $commonLine = null;
-        $divergentLines = [];
+        $mainDivergentLines = [];
+        $alternativeDivergentLines = [];
         foreach ($lines as $line) {
             $plain = $stripAnsi($line);
             if (str_contains($plain, '$result = $data + 1;')) {
                 $commonLine = $line;
-            } elseif (str_contains($plain, '$doubled') || str_contains($plain, '$tripled')) {
-                $divergentLines[] = $line;
+            } elseif (str_contains($plain, '$doubled')) {
+                // Instance 1 owns $doubled — it appears first at each divergent position, so these are "main" rows.
+                $mainDivergentLines[] = $line;
+            } elseif (str_contains($plain, '$tripled')) {
+                // Instance 2 owns $tripled — these are the alternative variants.
+                $alternativeDivergentLines[] = $line;
             }
         }
 
         self::assertNotNull($commonLine, 'Common row should be present');
-        self::assertCount(4, $divergentLines, 'Two divergent rows for $doubled/$tripled and two for the returns');
+        self::assertCount(2, $mainDivergentLines, 'Two main divergent rows ($doubled = ... and return $doubled;)');
+        self::assertCount(2, $alternativeDivergentLines, 'Two alternative divergent rows ($tripled = ... and return $tripled;)');
 
-        self::assertStringNotContainsString($lineBg, $commonLine, 'Common row should not carry the divergent-line background');
-        foreach ($divergentLines as $divLine) {
-            self::assertStringContainsString($lineBg, $divLine, 'Divergent row should carry the line background');
+        self::assertStringNotContainsString($lineBg, $commonLine, 'Common row must not carry the line bg');
+        foreach ($mainDivergentLines as $mainLine) {
+            self::assertStringNotContainsString($lineBg, $mainLine, 'Main divergent row must not carry the line bg');
+        }
+        foreach ($alternativeDivergentLines as $altLine) {
+            self::assertStringContainsString($lineBg, $altLine, 'Alternative divergent row must carry the line bg');
         }
     }
 

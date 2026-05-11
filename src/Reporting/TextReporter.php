@@ -411,7 +411,7 @@ final class TextReporter
             $highlighted = $row['ranges'] !== []
                 ? $this->highlighter->highlightWithDiffs($row['text'], $row['ranges'])
                 : $this->highlighter->highlight($row['text']);
-            if ($row['divergent']) {
+            if ($row['applyLineBg']) {
                 $highlighted = $this->highlighter->applyDivergentLineBackground($highlighted);
             }
             $output[] = sprintf(
@@ -436,7 +436,7 @@ final class TextReporter
      * @param non-empty-list<list<string>> $allInstanceLines
      * @param list<list<list<array{int, int}>>> $diffRangesPerInstance
      * @param non-empty-list<list<int>> $contentLineIdxsPerInstance
-     * @return list<array{kind: 'blank'} | array{kind: 'code', lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>, divergent: bool}>
+     * @return list<array{kind: 'blank'} | array{kind: 'code', lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>, applyLineBg: bool}>
      */
     private function buildUnifiedRows(
         array $subtrees,
@@ -478,7 +478,7 @@ final class TextReporter
                     'lineNums' => [[$firstSubtree, $sourceLine]],
                     'text' => $variants[0][1],
                     'ranges' => [],
-                    'divergent' => false,
+                    'applyLineBg' => false,
                 ];
                 continue;
             }
@@ -516,13 +516,15 @@ final class TextReporter
                     'ranges' => $existing['ranges'],
                 ];
             }
-            foreach ($orderedGroups as $group) {
+            foreach ($orderedGroups as $i => $group) {
                 $rows[] = [
                     'kind' => 'code',
                     'lineNums' => $group['lineNums'],
                     'text' => $group['text'],
                     'ranges' => $group['ranges'],
-                    'divergent' => true,
+                    // First variant at a divergent position is the "main" reference; subsequent
+                    // variants are the alternatives from other instances and get the line bg.
+                    'applyLineBg' => $i > 0,
                 ];
             }
         }
