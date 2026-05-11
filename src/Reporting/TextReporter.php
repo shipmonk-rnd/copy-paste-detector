@@ -7,6 +7,7 @@ use ShipMonk\CopyPasteDetector\AST\Subtree;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
 use function array_key_exists;
 use function array_slice;
+use function array_values;
 use function count;
 use function explode;
 use function file;
@@ -34,6 +35,11 @@ final class TextReporter
 
     private readonly string $basePath;
 
+    /**
+     * @var array<string, list<string>>
+     */
+    private array $fileLineCache = [];
+
     public function __construct(
         private readonly SyntaxHighlighter $highlighter,
         private readonly LineDiffer $lineDiffer,
@@ -59,26 +65,30 @@ final class TextReporter
         float $elapsedTime,
     ): string
     {
-        $timeStr = sprintf('%.2fs', $elapsedTime);
+        try {
+            $timeStr = sprintf('%.2fs', $elapsedTime);
 
-        if (count($cloneGroups) === 0) {
-            return sprintf("\n<fg=black;bg=green> No code clones detected, took %s </>\n", $timeStr);
-        }
+            if (count($cloneGroups) === 0) {
+                return sprintf("\n<fg=black;bg=green> No code clones detected, took %s </>\n", $timeStr);
+            }
 
-        $output = [];
+            $output = [];
 
-        $groupNumber = 1;
-        foreach ($cloneGroups as $group) {
+            $groupNumber = 1;
+            foreach ($cloneGroups as $group) {
+                $output[] = '';
+                $output[] = '  ' . str_repeat("\u{2500}", 37);
+                $output[] = $this->formatCloneGroup($group, $groupNumber);
+                $groupNumber++;
+            }
+
             $output[] = '';
-            $output[] = '  ' . str_repeat("\u{2500}", 37);
-            $output[] = $this->formatCloneGroup($group, $groupNumber);
-            $groupNumber++;
+            $output[] = sprintf("  \u{2716} %d clone groups found (%s)\n", count($cloneGroups), $timeStr);
+
+            return implode("\n", $output);
+        } finally {
+            $this->fileLineCache = [];
         }
-
-        $output[] = '';
-        $output[] = sprintf("  \u{2716} %d clone groups found (%s)\n", count($cloneGroups), $timeStr);
-
-        return implode("\n", $output);
     }
 
     /**
@@ -356,7 +366,6 @@ final class TextReporter
             return '';
         }
 
-        // contentLineIdxsPerInstance[i] = list of original line indices that hold non-blank content
         $contentLineIdxsPerInstance = [];
         foreach ($allInstanceLines as $instanceLines) {
             $idxs = [];
@@ -408,24 +417,48 @@ final class TextReporter
                 $output[] = sprintf('  %s %s ', $blankColumn, $separator);
                 continue;
             }
-            // Char-level diff highlighting is reserved for alternative variants — the main
-            // (first) variant at each divergent position renders as ordinary code.
-            $highlighted = ($row['applyLineBg'] && $row['ranges'] !== [])
-                ? $this->highlighter->highlightWithDiffs($row['text'], $row['ranges'])
-                : $this->highlighter->highlight($row['text']);
-            $rowText = sprintf(
-                '  %s %s %s',
-                $this->formatLineLabel($row['lineNums'], $labelWidth),
+            $output[] = $this->renderCodeRow(
+                $row['lineNums'],
+                $row['text'],
+                $row['ranges'],
+                $row['alternative'],
+                $labelWidth,
                 $separator,
-                $highlighted,
             );
-            if ($row['applyLineBg']) {
-                $rowText = $this->highlighter->applyDivergentLineBackground($rowText);
-            }
-            $output[] = $rowText;
         }
 
         return implode("\n", $output);
+    }
+
+    /**
+     * Render one code row. Alternative rows receive both char-level diff highlighting
+     * and a full-row background; main and common rows render as plain code.
+     *
+     * @param non-empty-list<array{Subtree, int}> $lineNums
+     * @param list<array{int, int}> $ranges
+     */
+    private function renderCodeRow(
+        array $lineNums,
+        string $text,
+        array $ranges,
+        bool $alternative,
+        int $labelWidth,
+        string $separator,
+    ): string
+    {
+        $highlighted = ($alternative && $ranges !== [])
+            ? $this->highlighter->highlightWithDiffs($text, $ranges)
+            : $this->highlighter->highlight($text);
+        $rowText = sprintf(
+            '  %s %s %s',
+            $this->formatLineLabel($lineNums, $labelWidth),
+            $separator,
+            $highlighted,
+        );
+        if ($alternative) {
+            $rowText = $this->highlighter->applyDivergentLineBackground($rowText);
+        }
+        return $rowText;
     }
 
     /**
@@ -439,7 +472,7 @@ final class TextReporter
      * @param non-empty-list<list<string>> $allInstanceLines
      * @param list<list<list<array{int, int}>>> $diffRangesPerInstance
      * @param non-empty-list<list<int>> $contentLineIdxsPerInstance
-     * @return list<array{kind: 'blank'} | array{kind: 'code', lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>, applyLineBg: bool}>
+     * @return list<array{kind: 'blank'} | array{kind: 'code', lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>, alternative: bool}>
      */
     private function buildUnifiedRows(
         array $subtrees,
@@ -481,15 +514,13 @@ final class TextReporter
                     'lineNums' => [[$firstSubtree, $sourceLine]],
                     'text' => $variants[0][1],
                     'ranges' => [],
-                    'applyLineBg' => false,
+                    'alternative' => false,
                 ];
                 continue;
             }
 
-            /** @var list<array{lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>}> $orderedGroups */
-            $orderedGroups = [];
-            /** @var array<string, int> $groupIndexByKey */
-            $groupIndexByKey = [];
+            /** @var array<string, array{lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>}> $groupsByKey */
+            $groupsByKey = [];
             foreach ($variants as [$instIdx, $instText, $ranges, $origLineIdx]) {
                 $subtree = $subtrees[$instIdx] ?? null;
                 if ($subtree === null) {
@@ -497,37 +528,31 @@ final class TextReporter
                 }
                 $sourceLine = $subtree->getStartLine() + $origLineIdx;
                 $key = trim($instText);
-                if (!array_key_exists($key, $groupIndexByKey)) {
-                    $groupIndexByKey[$key] = count($orderedGroups);
-                    $orderedGroups[] = [
+                if (!array_key_exists($key, $groupsByKey)) {
+                    $groupsByKey[$key] = [
                         'lineNums' => [[$subtree, $sourceLine]],
                         'text' => $instText,
                         'ranges' => $ranges,
                     ];
                     continue;
                 }
-                $idx = $groupIndexByKey[$key];
-                if (!array_key_exists($idx, $orderedGroups)) {
-                    throw new LogicException('Unified rendering: group index out of range');
-                }
-                $existing = $orderedGroups[$idx];
+                // Re-assign the full shape so PHPStan can track lineNums stays non-empty.
+                $existing = $groupsByKey[$key];
                 $appendedLineNums = $existing['lineNums'];
                 $appendedLineNums[] = [$subtree, $sourceLine];
-                $orderedGroups[$idx] = [
+                $groupsByKey[$key] = [
                     'lineNums' => $appendedLineNums,
                     'text' => $existing['text'],
                     'ranges' => $existing['ranges'],
                 ];
             }
-            foreach ($orderedGroups as $i => $group) {
+            foreach (array_values($groupsByKey) as $i => $group) {
                 $rows[] = [
                     'kind' => 'code',
                     'lineNums' => $group['lineNums'],
                     'text' => $group['text'],
                     'ranges' => $group['ranges'],
-                    // First variant at a divergent position is the "main" reference; subsequent
-                    // variants are the alternatives from other instances and get the line bg.
-                    'applyLineBg' => $i > 0,
+                    'alternative' => $i > 0,
                 ];
             }
         }
@@ -630,42 +655,35 @@ final class TextReporter
             }
             foreach ($instanceLines as $lineIdx => $line) {
                 $ranges = $diffRangesPerInstance[$i][$lineIdx] ?? [];
-                $highlighted = $ranges !== []
-                    ? $this->highlighter->highlightWithDiffs($line, $ranges)
-                    : $this->highlighter->highlight($line);
                 $sourceLine = $subtree->getStartLine() + $lineIdx;
-                $rowText = sprintf(
-                    '  %s %s %s',
-                    $this->formatLineLabel([[$subtree, $sourceLine]], $lineNumberWidth),
+                $output[] = $this->renderCodeRow(
+                    [[$subtree, $sourceLine]],
+                    $line,
+                    $ranges,
+                    $ranges !== [],
+                    $lineNumberWidth,
                     $separator,
-                    $highlighted,
                 );
-                if ($ranges !== []) {
-                    $rowText = $this->highlighter->applyDivergentLineBackground($rowText);
-                }
-                $output[] = $rowText;
             }
         }
         return implode("\n", $output);
     }
 
-    /**
-     * Read original source code from file preserving newlines
-     */
     private function readOriginalSource(
         string $filePath,
         int $startLine,
         int $endLine,
     ): string
     {
-        $lines = file($filePath, FILE_IGNORE_NEW_LINES);
-        if ($lines === false) {
-            throw new LogicException("Failed to read source file '{$filePath}'");
+        if (!array_key_exists($filePath, $this->fileLineCache)) {
+            $lines = file($filePath, FILE_IGNORE_NEW_LINES);
+            if ($lines === false) {
+                throw new LogicException("Failed to read source file '{$filePath}'");
+            }
+            $this->fileLineCache[$filePath] = $lines;
         }
-
-        // Extract the relevant lines (file() is 0-indexed, but line numbers are 1-indexed)
-        $relevantLines = array_slice($lines, $startLine - 1, $endLine - $startLine + 1);
-
+        // file() is 0-indexed but line numbers are 1-indexed.
+        $relevantLines = array_slice($this->fileLineCache[$filePath], $startLine - 1, $endLine - $startLine + 1);
         return implode("\n", $relevantLines);
     }
 
