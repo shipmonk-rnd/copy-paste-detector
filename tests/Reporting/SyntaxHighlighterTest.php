@@ -5,6 +5,7 @@ namespace ShipMonk\CopyPasteDetectorTests\Reporting;
 use PHPUnit\Framework\TestCase;
 use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
 use function strlen;
+use function substr_count;
 
 final class SyntaxHighlighterTest extends TestCase
 {
@@ -127,6 +128,32 @@ final class SyntaxHighlighterTest extends TestCase
         // Opening tag is in input, should appear in output
         self::assertStringContainsString('<?php', $result);
         self::assertStringContainsString('$x', $result);
+    }
+
+    public function testApplyDivergentLineBackgroundWrapsLineAndReappliesAfterInternalResets(): void
+    {
+        $highlighter = new SyntaxHighlighter(true);
+        $highlighted = $highlighter->highlight('$foo = 1;');
+
+        $wrapped = $highlighter->applyDivergentLineBackground($highlighted);
+
+        // Should start with the line-background ANSI escape so the bg is set before any tokens.
+        self::assertStringStartsWith("\033[48;5;235m", $wrapped);
+        // Should end with a full reset.
+        self::assertStringEndsWith("\033[0m", $wrapped);
+        // Each internal RESET should be followed by a re-application of the line bg.
+        $resetCount = substr_count($highlighted, "\033[0m");
+        $reappliedCount = substr_count($wrapped, "\033[0m\033[48;5;235m");
+        self::assertSame($resetCount, $reappliedCount, 'Every internal reset must restore the line background');
+    }
+
+    public function testApplyDivergentLineBackgroundIsNoOpWhenColorsDisabled(): void
+    {
+        $highlighter = new SyntaxHighlighter(false);
+
+        $result = $highlighter->applyDivergentLineBackground('$foo = 1;');
+
+        self::assertSame('$foo = 1;', $result);
     }
 
 }

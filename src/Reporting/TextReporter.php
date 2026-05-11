@@ -411,6 +411,9 @@ final class TextReporter
             $highlighted = $row['ranges'] !== []
                 ? $this->highlighter->highlightWithDiffs($row['text'], $row['ranges'])
                 : $this->highlighter->highlight($row['text']);
+            if ($row['divergent']) {
+                $highlighted = $this->highlighter->applyDivergentLineBackground($highlighted);
+            }
             $output[] = sprintf(
                 '  %s %s %s',
                 $this->formatLineLabel($row['lineNums'], $labelWidth),
@@ -433,7 +436,7 @@ final class TextReporter
      * @param non-empty-list<list<string>> $allInstanceLines
      * @param list<list<list<array{int, int}>>> $diffRangesPerInstance
      * @param non-empty-list<list<int>> $contentLineIdxsPerInstance
-     * @return list<array{kind: 'blank'} | array{kind: 'code', lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>}>
+     * @return list<array{kind: 'blank'} | array{kind: 'code', lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>, divergent: bool}>
      */
     private function buildUnifiedRows(
         array $subtrees,
@@ -475,6 +478,7 @@ final class TextReporter
                     'lineNums' => [[$firstSubtree, $sourceLine]],
                     'text' => $variants[0][1],
                     'ranges' => [],
+                    'divergent' => false,
                 ];
                 continue;
             }
@@ -518,6 +522,7 @@ final class TextReporter
                     'lineNums' => $group['lineNums'],
                     'text' => $group['text'],
                     'ranges' => $group['ranges'],
+                    'divergent' => true,
                 ];
             }
         }
@@ -622,6 +627,7 @@ final class TextReporter
                 $ranges = $diffRangesPerInstance[$i][$lineIdx] ?? [];
                 if ($ranges !== []) {
                     $highlighted = $this->highlighter->highlightWithDiffs($line, $ranges);
+                    $highlighted = $this->highlighter->applyDivergentLineBackground($highlighted);
                 } else {
                     $highlighted = $this->highlighter->highlight($line);
                 }

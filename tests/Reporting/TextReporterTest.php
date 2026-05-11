@@ -12,8 +12,11 @@ use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
 use ShipMonk\CopyPasteDetector\Reporting\TextReporter;
 use ShipMonk\CopyPasteDetectorTests\Helpers\TestDirectoryHelper;
 use function count;
+use function explode;
 use function file_put_contents;
 use function mkdir;
+use function preg_replace;
+use function str_contains;
 use function str_repeat;
 use function substr_count;
 use function sys_get_temp_dir;
@@ -396,6 +399,54 @@ final class TextReporterTest extends TestCase
 
         // Deeper 12-space indent of instance 2 must be stripped.
         self::assertStringNotContainsString('            $b', $result);
+    }
+
+    public function testDivergentRowsGetLineBackgroundWhenColorsEnabled(): void
+    {
+        $highlighter = new SyntaxHighlighter(enabled: true);
+        $reporter = new TextReporter($highlighter, new LineDiffer());
+
+        $file1Content = str_repeat("// pad\n", 9)
+            . "    \$result = \$data + 1;\n"
+            . "    \$doubled = \$result * 2;\n"
+            . "    return \$doubled;\n";
+        $file2Content = str_repeat("// pad\n", 19)
+            . "    \$result = \$data + 1;\n"
+            . "    \$tripled = \$result * 2;\n"
+            . "    return \$tripled;\n";
+
+        $file1 = $this->createTempFile('linebg1.php', $file1Content);
+        $file2 = $this->createTempFile('linebg2.php', $file2Content);
+
+        $group = $this->cloneGroup([[$file1, 10, 12], [$file2, 20, 22]]);
+
+        $result = $reporter->report([$group], 0.5);
+
+        $lineBg = "\033[48;5;235m";
+
+        // Strip ANSI from each line so we can match by code content, then check the original
+        // line for the line-bg sequence.
+        $lines = explode("\n", $result);
+        $stripAnsi = static fn (string $s): string => preg_replace('/\x1b\[[0-9;]*[A-Za-z]/', '', $s) ?? $s;
+
+        $commonLine = null;
+        $divergentLines = [];
+        foreach ($lines as $line) {
+            $plain = $stripAnsi($line);
+            if (str_contains($plain, '$result = $data + 1;')) {
+                $commonLine = $line;
+            } elseif (str_contains($plain, '$doubled') || str_contains($plain, '$tripled')) {
+                $divergentLines[] = $line;
+            }
+        }
+
+        self::assertNotNull($commonLine, 'Common row should be present');
+        self::assertCount(4, $divergentLines, 'Two divergent rows for $doubled/$tripled and two for the returns');
+
+        self::assertStringNotContainsString($lineBg, $commonLine, 'Common row should not carry the divergent-line background');
+        foreach ($divergentLines as $divLine) {
+            self::assertStringContainsString($lineBg, $divLine, 'Divergent row should carry the line background');
+        }
     }
 
     public function testUnifiedViewDedupsIdenticalVariantsAtDivergentPosition(): void

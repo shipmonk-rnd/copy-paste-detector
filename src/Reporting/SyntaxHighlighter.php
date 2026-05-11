@@ -8,6 +8,7 @@ use function extension_loaded;
 use function in_array;
 use function is_string;
 use function sprintf;
+use function str_replace;
 use function str_starts_with;
 use function strlen;
 use function strtolower;
@@ -104,7 +105,8 @@ final class SyntaxHighlighter
     private const COLOR_TYPE = "\033[35m"; // Magenta
     private const COLOR_DIM = "\033[2m"; // Dim
     private const FORMAT_BOLD = "\033[1m"; // Bold
-    private const DIFF_HIGHLIGHT = "\033[48;5;235m"; // Dark gray background for diff highlighting
+    private const DIFF_LINE_BG = "\033[48;5;235m"; // Dark gray background marking divergent-line rows
+    private const DIFF_HIGHLIGHT = "\033[48;5;238m"; // Slightly lighter gray to make char-level diffs stand out inside DIFF_LINE_BG
 
     private bool $enabled;
 
@@ -410,6 +412,25 @@ final class SyntaxHighlighter
             }
         }
         return false;
+    }
+
+    /**
+     * Wrap an already-highlighted line in a background color marking it as a
+     * divergent row. Internal color resets get a re-applied line background so
+     * the band stays continuous across syntax-colored tokens (including over
+     * char-level diff highlights, which use a slightly brighter shade).
+     */
+    public function applyDivergentLineBackground(string $highlightedLine): string
+    {
+        if (!$this->enabled) {
+            return $highlightedLine;
+        }
+        $reapplied = str_replace(
+            self::COLOR_RESET,
+            self::COLOR_RESET . self::DIFF_LINE_BG,
+            $highlightedLine,
+        );
+        return self::DIFF_LINE_BG . $reapplied . self::COLOR_RESET;
     }
 
 }
