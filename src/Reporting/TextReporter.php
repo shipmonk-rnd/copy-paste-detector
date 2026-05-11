@@ -35,11 +35,6 @@ final class TextReporter
 
     private readonly string $basePath;
 
-    /**
-     * @var array<string, list<string>>
-     */
-    private array $fileLineCache = [];
-
     public function __construct(
         private readonly SyntaxHighlighter $highlighter,
         private readonly LineDiffer $lineDiffer,
@@ -65,30 +60,26 @@ final class TextReporter
         float $elapsedTime,
     ): string
     {
-        try {
-            $timeStr = sprintf('%.2fs', $elapsedTime);
+        $timeStr = sprintf('%.2fs', $elapsedTime);
 
-            if (count($cloneGroups) === 0) {
-                return sprintf("\n<fg=black;bg=green> No code clones detected, took %s </>\n", $timeStr);
-            }
-
-            $output = [];
-
-            $groupNumber = 1;
-            foreach ($cloneGroups as $group) {
-                $output[] = '';
-                $output[] = '  ' . str_repeat("\u{2500}", 37);
-                $output[] = $this->formatCloneGroup($group, $groupNumber);
-                $groupNumber++;
-            }
-
-            $output[] = '';
-            $output[] = sprintf("  \u{2716} %d clone groups found (%s)\n", count($cloneGroups), $timeStr);
-
-            return implode("\n", $output);
-        } finally {
-            $this->fileLineCache = [];
+        if (count($cloneGroups) === 0) {
+            return sprintf("\n<fg=black;bg=green> No code clones detected, took %s </>\n", $timeStr);
         }
+
+        $output = [];
+
+        $groupNumber = 1;
+        foreach ($cloneGroups as $group) {
+            $output[] = '';
+            $output[] = '  ' . str_repeat("\u{2500}", 37);
+            $output[] = $this->formatCloneGroup($group, $groupNumber);
+            $groupNumber++;
+        }
+
+        $output[] = '';
+        $output[] = sprintf("  \u{2716} %d clone groups found (%s)\n", count($cloneGroups), $timeStr);
+
+        return implode("\n", $output);
     }
 
     /**
@@ -675,15 +666,12 @@ final class TextReporter
         int $endLine,
     ): string
     {
-        if (!array_key_exists($filePath, $this->fileLineCache)) {
-            $lines = file($filePath, FILE_IGNORE_NEW_LINES);
-            if ($lines === false) {
-                throw new LogicException("Failed to read source file '{$filePath}'");
-            }
-            $this->fileLineCache[$filePath] = $lines;
+        $lines = file($filePath, FILE_IGNORE_NEW_LINES);
+        if ($lines === false) {
+            throw new LogicException("Failed to read source file '{$filePath}'");
         }
         // file() is 0-indexed but line numbers are 1-indexed.
-        $relevantLines = array_slice($this->fileLineCache[$filePath], $startLine - 1, $endLine - $startLine + 1);
+        $relevantLines = array_slice($lines, $startLine - 1, $endLine - $startLine + 1);
         return implode("\n", $relevantLines);
     }
 
