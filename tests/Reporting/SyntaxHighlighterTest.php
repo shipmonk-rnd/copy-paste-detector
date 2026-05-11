@@ -4,6 +4,7 @@ namespace ShipMonk\CopyPasteDetectorTests\Reporting;
 
 use PHPUnit\Framework\TestCase;
 use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
+use function strlen;
 
 final class SyntaxHighlighterTest extends TestCase
 {
@@ -68,6 +69,64 @@ final class SyntaxHighlighterTest extends TestCase
 
         // Numbers should be highlighted
         self::assertNotSame($code, $highlighted, 'Should highlight numbers');
+    }
+
+    public function testHighlightWithDiffsFallsBackToHighlightWhenDisabled(): void
+    {
+        $highlighter = new SyntaxHighlighter(false);
+        $code = '$foo = 1;';
+        self::assertSame($code, $highlighter->highlightWithDiffs($code, [[0, 4]]));
+    }
+
+    public function testHighlightWithDiffsFallsBackToHighlightWhenNoRanges(): void
+    {
+        $highlighter = new SyntaxHighlighter(true);
+        $code = '$foo = 1;';
+        self::assertSame(
+            $highlighter->highlight($code),
+            $highlighter->highlightWithDiffs($code, []),
+        );
+    }
+
+    public function testHighlightWithDiffsWrapsRangesWithDiffHighlight(): void
+    {
+        $highlighter = new SyntaxHighlighter(true);
+        $code = '$foo = 42;';
+
+        // Highlight the variable ($foo, positions 0..4)
+        $result = $highlighter->highlightWithDiffs($code, [[0, 4]]);
+
+        // Should contain ANSI escape codes (both color and the diff background)
+        self::assertStringContainsString("\033[", $result);
+        // Variable text must be present
+        self::assertStringContainsString('$foo', $result);
+        // Numeric literal sits outside the diff range, so it should still be present
+        self::assertStringContainsString('42', $result);
+    }
+
+    public function testHighlightWithDiffsHandlesCodeWithoutOpeningTag(): void
+    {
+        $highlighter = new SyntaxHighlighter(true);
+        // No <?php prefix - method should add it for tokenization but strip it from output
+        $code = 'return $x + 1;';
+
+        $result = $highlighter->highlightWithDiffs($code, [[0, strlen($code)]]);
+
+        self::assertStringNotContainsString('<?php', $result);
+        self::assertStringContainsString('return', $result);
+        self::assertStringContainsString('$x', $result);
+    }
+
+    public function testHighlightWithDiffsHandlesCodeWithOpeningTag(): void
+    {
+        $highlighter = new SyntaxHighlighter(true);
+        $code = '<?php $x = 1;';
+
+        $result = $highlighter->highlightWithDiffs($code, [[6, 8]]);
+
+        // Opening tag is in input, should appear in output
+        self::assertStringContainsString('<?php', $result);
+        self::assertStringContainsString('$x', $result);
     }
 
 }

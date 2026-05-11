@@ -16,14 +16,14 @@ use function method_exists;
 final class Application extends BaseApplication
 {
 
-    public function __construct()
+    public function __construct(string $cwd)
     {
         $version = InstalledVersions::getPrettyVersion('shipmonk/copy-paste-detector') ?? 'dev';
 
         parent::__construct('Copy Paste Detector', $version);
 
         $addCommand = method_exists($this, 'addCommand') ? 'addCommand' : 'add';
-        $this->$addCommand(new DetectCommand());
+        $this->$addCommand(new DetectCommand($cwd));
         $this->setDefaultCommand('detect', true);
     }
 

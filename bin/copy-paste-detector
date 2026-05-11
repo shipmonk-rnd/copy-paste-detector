@@ -27,5 +27,11 @@ if (!$autoloaderFound) {
 }
 
 // Run application
-$application = new ShipMonk\CopyPasteDetector\CLI\Application();
+$cwd = getcwd();
+if ($cwd === false) {
+    fwrite(STDERR, 'Error: Could not determine current working directory via getcwd()' . PHP_EOL);
+    exit(1);
+}
+
+$application = new ShipMonk\CopyPasteDetector\CLI\Application($cwd);
 $application->run();

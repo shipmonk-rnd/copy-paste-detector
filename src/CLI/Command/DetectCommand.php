@@ -29,7 +29,6 @@ use function array_map;
 use function array_values;
 use function count;
 use function file_exists;
-use function getcwd;
 use function implode;
 use function is_array;
 use function is_dir;
@@ -50,6 +49,13 @@ use const PATHINFO_EXTENSION;
  */
 final class DetectCommand extends Command
 {
+
+    public function __construct(
+        private readonly string $cwd,
+    )
+    {
+        parent::__construct();
+    }
 
     protected function configure(): void
     {
@@ -115,21 +121,16 @@ HELP,);
     {
         $stderr = $this->getStderr($output);
 
-        $cwd = getcwd();
-        if ($cwd === false) {
-            throw new ErrorException('Could not determine current working directory');
-        }
-
-        $resolvedConfig = $this->loadConfiguration($input, $cwd);
+        $resolvedConfig = $this->loadConfiguration($input);
         $config = $resolvedConfig->getConfig();
-        $this->displayConfigPath($resolvedConfig, $stderr, $cwd);
+        $this->displayConfigPath($resolvedConfig, $stderr);
 
         [$cacheDir, $usingDefaultCacheDir, $cliOverrideCacheDir] = $this->resolveCacheDir($input, $config);
         [$minNodeCount, $usingDefaultMinNodeCount, $cliOverrideMinNodeCount] = $this->resolveMinNodeCount($input, $config);
         [$paths, $usingDefaultPaths, $overriddenConfigPaths] = $this->resolvePaths($input, $config);
 
-        $realExcludePaths = $this->resolveExcludePaths($config, $cwd);
-        $this->warnAboutIneffectiveExcludes($paths, $realExcludePaths, $cwd, $stderr);
+        $realExcludePaths = $this->resolveExcludePaths($config);
+        $this->warnAboutIneffectiveExcludes($paths, $realExcludePaths, $stderr);
 
         $files = $this->collectPhpFilesFromPaths($paths, $realExcludePaths);
         if (count($files) === 0) {
@@ -138,7 +139,6 @@ HELP,);
 
         $this->displayScanInfo(
             $stderr,
-            $cwd,
             $paths,
             $usingDefaultPaths,
             $overriddenConfigPaths,
@@ -170,10 +170,7 @@ HELP,);
     /**
      * @throws ErrorException
      */
-    private function loadConfiguration(
-        InputInterface $input,
-        string $cwd,
-    ): ResolvedConfig
+    private function loadConfiguration(InputInterface $input): ResolvedConfig
     {
         $configPath = $input->getOption('config');
 
@@ -181,7 +178,7 @@ HELP,);
             throw new LogicException('Config option must be a string or null');
         }
 
-        $configResolver = new ConfigResolver($cwd);
+        $configResolver = new ConfigResolver($this->cwd);
 
         return $configResolver->resolveConfig($configPath);
     }
@@ -189,11 +186,10 @@ HELP,);
     private function displayConfigPath(
         ResolvedConfig $resolvedConfig,
         OutputInterface $stderr,
-        string $cwd,
     ): void
     {
         if ($resolvedConfig->wasAutoDetected() && $resolvedConfig->getUsedConfigPath() !== null) {
-            $configPath = $this->relativizePath($resolvedConfig->getUsedConfigPath(), $cwd);
+            $configPath = $this->relativizePath($resolvedConfig->getUsedConfigPath());
             $stderr->writeln(sprintf('Config: <fg=#aaaaaa>%s</>', $configPath));
         }
     }
@@ -244,10 +240,7 @@ HELP,);
      *
      * @throws ErrorException
      */
-    private function resolveExcludePaths(
-        Config $config,
-        string $cwd,
-    ): array
+    private function resolveExcludePaths(Config $config): array
     {
         $realExcludePaths = [];
 
@@ -255,7 +248,7 @@ HELP,);
             $originalPath = $excludePath;
 
             if (!str_starts_with($excludePath, '/')) {
-                $excludePath = $cwd . '/' . $excludePath;
+                $excludePath = $this->cwd . '/' . $excludePath;
             }
 
             $resolved = realpath($excludePath);
@@ -281,7 +274,6 @@ HELP,);
     private function warnAboutIneffectiveExcludes(
         array $paths,
         array $realExcludePaths,
-        string $cwd,
         OutputInterface $stderr,
     ): void
     {
@@ -302,7 +294,7 @@ HELP,);
             }
 
             if (!$isWithinScanPaths) {
-                $relativePath = $this->relativizePath($realExcludePath, $cwd);
+                $relativePath = $this->relativizePath($realExcludePath);
                 $stderr->writeln("<comment>Warning: Exclude path {$relativePath} is not within any scanned path</comment>");
             }
         }
@@ -338,8 +330,8 @@ HELP,);
             $paths = $configPaths;
         }
 
-        if ($paths === [] && is_dir('src')) {
-            $paths = ['src'];
+        if ($paths === [] && is_dir($this->cwd . '/src')) {
+            $paths = [$this->cwd . '/src'];
             $usingDefault = true;
         }
 
@@ -363,7 +355,6 @@ HELP,);
      */
     private function displayScanInfo(
         OutputInterface $stderr,
-        string $cwd,
         array $paths,
         bool $usingDefaultPaths,
         ?array $overriddenConfigPaths,
@@ -376,12 +367,12 @@ HELP,);
         bool $cliOverrideCacheDir,
     ): void
     {
-        $relativePaths = array_map(fn (string $path) => $this->relativizePath($path, $cwd), $paths);
+        $relativePaths = array_map($this->relativizePath(...), $paths);
         $pathsNote = $this->buildOptionNote($usingDefaultPaths, $overriddenConfigPaths !== null, 'paths argument');
         $stderr->writeln(sprintf('Scanning: %s%s', implode(', ', array_map(static fn (string $p) => "<fg=#aaaaaa>{$p}</>", $relativePaths)), $pathsNote));
 
         if ($realExcludePaths !== []) {
-            $relativeExcludePaths = array_map(fn (string $path) => $this->relativizePath($path, $cwd), $realExcludePaths);
+            $relativeExcludePaths = array_map($this->relativizePath(...), $realExcludePaths);
             $stderr->writeln(sprintf('Excluding: %s', implode(', ', array_map(static fn (string $p) => "<fg=#aaaaaa>{$p}</>", $relativeExcludePaths))));
         }
 
@@ -389,7 +380,7 @@ HELP,);
         $stderr->writeln(sprintf('Limit: <fg=#aaaaaa>≥%d nodes</>%s', $minNodeCount, $limitNote));
 
         $cacheNote = $this->buildOptionNote($usingDefaultCacheDir, $cliOverrideCacheDir, '--cache-dir');
-        $stderr->writeln(sprintf('Cache: <fg=#aaaaaa>%s</>%s', $this->relativizePath($cacheDir, $cwd), $cacheNote));
+        $stderr->writeln(sprintf('Cache: <fg=#aaaaaa>%s</>%s', $this->relativizePath($cacheDir), $cacheNote));
 
         $stderr->writeln('');
     }
@@ -548,15 +539,9 @@ HELP,);
         return pathinfo($path, PATHINFO_EXTENSION) === 'php';
     }
 
-    /**
-     * Make a path relative to the given base path if it starts with it
-     */
-    private function relativizePath(
-        string $path,
-        string $basePath,
-    ): string
+    private function relativizePath(string $path): string
     {
-        $prefix = $basePath . '/';
+        $prefix = $this->cwd . '/';
         if (str_starts_with($path, $prefix)) {
             return './' . substr($path, strlen($prefix));
         }

@@ -10,7 +10,6 @@ use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 use function array_values;
 use function file_exists;
 use function file_get_contents;
-use function is_readable;
 
 /**
  * Wrapper around nikic/php-parser for parsing PHP source code into ASTs
@@ -60,10 +59,6 @@ final class Parser
     {
         if (!file_exists($filePath)) {
             throw new ErrorException("File not found: {$filePath}");
-        }
-
-        if (!is_readable($filePath)) {
-            throw new ErrorException("File not readable: {$filePath}");
         }
 
         $code = file_get_contents($filePath);
