@@ -10,7 +10,7 @@
     <file>tests/</file>
     <file>bin/</file>
 
-    <exclude-pattern>*/tests/Fixtures/*</exclude-pattern>
+    <exclude-pattern>*/tests/_fixtures/*</exclude-pattern>
 
     <config name="php_version" value="80100"/>
     <config name="installed_paths" value="vendor/slevomat/coding-standard,vendor/shipmonk/coding-standard"/>

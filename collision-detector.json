@@ -1,0 +1,4 @@
+{
+    "scanPaths": ["src", "tests"],
+    "excludePaths": ["tests/_fixtures"]
+}
