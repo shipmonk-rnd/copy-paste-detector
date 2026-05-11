@@ -45,19 +45,11 @@ parameters:
             message: '#^Variable method call on \$this\(ShipMonk\\CopyPasteDetector\\CLI\\Application\)\.$#'
             path: src/CLI/Application.php
         -
-            message: '#^Call to function method_exists\(\) with \$this\(ShipMonk\\CopyPasteDetector\\CLI\\Application\) and ''addCommand'' will always evaluate to true\.$#'
-            path: src/CLI/Application.php
-            reportUnmatched: false
-        -
-            message: '#^Call to function method_exists\(\) with \$this\(ShipMonk\\CopyPasteDetector\\CLI\\Application\) and ''addCommand'' will always evaluate to false\.$#'
+            message: '#^Call to function method_exists\(\) with \$this\(ShipMonk\\CopyPasteDetector\\CLI\\Application\) and ''addCommand'' will always evaluate to (true|false)\.$#'
             path: src/CLI/Application.php
             reportUnmatched: false
         -
             message: '#^Call to an undefined method ShipMonk\\CopyPasteDetector\\CLI\\Application::add\(\)\.$#'
-            path: src/CLI/Application.php
-            reportUnmatched: false
-        -
-            message: '#^Call to an undefined method ShipMonk\\CopyPasteDetector\\CLI\\Application::addCommand\(\)\.$#'
             path: src/CLI/Application.php
             reportUnmatched: false
 
