@@ -33,6 +33,7 @@ final class CloneDetector
 
     private readonly Parser $parser;
     private readonly SubtreeExtractor $subtreeExtractor;
+    private readonly SubsumptionFilter $subsumptionFilter;
     private ?OutputInterface $output = null;
 
     public function __construct(Config $config)
@@ -45,6 +46,7 @@ final class CloneDetector
             $config->shouldAnonymizeIdentifiers(),
         );
         $this->subtreeExtractor = new SubtreeExtractor(new SubtreeHasher($normalizer));
+        $this->subsumptionFilter = new SubsumptionFilter();
     }
 
     /**
@@ -73,7 +75,11 @@ final class CloneDetector
         // Build hash index and create clone groups
         $hashIndex = $this->buildHashIndex($allSubtrees);
 
-        return $this->createCloneGroups($hashIndex);
+        $cloneGroups = $this->createCloneGroups($hashIndex);
+        $cloneGroups = $this->subsumptionFilter->filter($cloneGroups);
+        $this->sortCloneGroups($cloneGroups);
+
+        return $cloneGroups;
     }
 
     /**
@@ -200,8 +206,6 @@ final class CloneDetector
         foreach ($hashGroups as $subtrees) {
             $cloneGroups[] = new CloneGroup($subtrees);
         }
-
-        $this->sortCloneGroups($cloneGroups);
 
         return $cloneGroups;
     }

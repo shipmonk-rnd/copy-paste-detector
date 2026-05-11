@@ -64,7 +64,7 @@
             "@check:collisions",
             "@check:self"
         ],
-        "check:collisions": "detect-collisions src tests",
+        "check:collisions": "detect-collisions --configuration collision-detector.json",
         "check:composer": [
             "composer normalize --dry-run --no-check-lock --no-update-lock",
             "composer validate --strict"
