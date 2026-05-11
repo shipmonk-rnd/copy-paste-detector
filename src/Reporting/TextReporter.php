@@ -5,6 +5,7 @@ namespace ShipMonk\CopyPasteDetector\Reporting;
 use LogicException;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
+use function array_key_exists;
 use function array_slice;
 use function count;
 use function explode;
@@ -19,6 +20,7 @@ use function str_replace;
 use function str_starts_with;
 use function strlen;
 use function substr;
+use function trim;
 use const DIRECTORY_SEPARATOR;
 use const FILE_IGNORE_NEW_LINES;
 
@@ -148,11 +150,11 @@ final class TextReporter
         $instanceCount = $group->getInstanceCount();
         $nodeCount = $group->getNodeCount();
 
-        // Collect all code lines from all instances for diff comparison
         $allInstanceLines = $this->collectInstanceLines($subtrees);
         $diffRangesPerInstance = $this->lineDiffer->computeDiffRanges($allInstanceLines);
-
         $isExactMatch = $this->isExactMatch($allInstanceLines);
+
+        $lineNumberWidth = $this->computeLineNumberWidth($subtrees);
 
         $output = [];
         $statusLine = sprintf(
@@ -167,33 +169,39 @@ final class TextReporter
         }
 
         $output[] = $statusLine;
+        $output[] = '';
 
-        $instanceIndex = 0;
         foreach ($subtrees as $subtree) {
-            $filePath = $subtree->getFilePath();
-            $startLine = $subtree->getStartLine();
-            $endLine = $subtree->getEndLine();
-
-            $formattedLocation = sprintf(
+            $location = sprintf(
                 '%s:%d-%d',
-                $this->formatPath($filePath),
-                $startLine,
-                $endLine,
+                $this->formatPath($subtree->getFilePath()),
+                $subtree->getStartLine(),
+                $subtree->getEndLine(),
             );
-
-            $output[] = '';
-            $output[] = '  ' . $this->makeClickable($formattedLocation, $filePath, $startLine);
-            $diffRanges = $diffRangesPerInstance[$instanceIndex] ?? [];
-            $output[] = $this->formatCodeWithDiffs(
-                $filePath,
-                $startLine,
-                $endLine,
-                $diffRanges,
-            );
-            $instanceIndex++;
+            $output[] = '  ' . $this->makeClickable($location, $subtree->getFilePath(), $subtree->getStartLine());
         }
 
+        $output[] = '';
+        $output[] = $this->renderUnifiedCode($subtrees, $allInstanceLines, $diffRangesPerInstance, $lineNumberWidth);
+
         return implode("\n", $output);
+    }
+
+    /**
+     * Determine the column width needed to print line numbers across all instances.
+     *
+     * @param list<Subtree> $subtrees
+     */
+    private function computeLineNumberWidth(array $subtrees): int
+    {
+        $maxLine = 0;
+        foreach ($subtrees as $subtree) {
+            if ($subtree->getEndLine() > $maxLine) {
+                $maxLine = $subtree->getEndLine();
+            }
+        }
+        $width = strlen((string) $maxLine);
+        return $width < 3 ? 3 : $width;
     }
 
     /**
@@ -239,40 +247,199 @@ final class TextReporter
     }
 
     /**
-     * Format source code with syntax highlighting and diff highlighting
+     * Render the unified code block for a clone group.
      *
-     * @param list<list<array{int, int}>> $diffRangesPerLine Diff ranges for each line
+     * Common lines (whitespace-equal across all instances) are shown once with the
+     * first instance's source line number. Lines that differ are shown once per
+     * instance, each prefixed with that instance's source line number. Falls back
+     * to per-instance rendering when blank-line layouts make content-line counts
+     * diverge.
+     *
+     * @param list<Subtree> $subtrees
+     * @param list<list<string>> $allInstanceLines
+     * @param list<list<list<array{int, int}>>> $diffRangesPerInstance
      */
-    private function formatCodeWithDiffs(
-        string $filePath,
-        int $startLine,
-        int $endLine,
-        array $diffRangesPerLine,
+    private function renderUnifiedCode(
+        array $subtrees,
+        array $allInstanceLines,
+        array $diffRangesPerInstance,
+        int $lineNumberWidth,
     ): string
     {
-        $code = $this->readOriginalSource($filePath, $startLine, $endLine);
-
-        $lines = explode("\n", $code);
-        $formatted = [];
-        $maxLineNumber = $startLine + count($lines) - 1;
-        $width = strlen((string) $maxLineNumber);
-        if ($width < 3) {
-            $width = 3;
+        if ($allInstanceLines === []) {
+            return '';
         }
 
-        foreach ($lines as $i => $line) {
-            $diffRanges = $diffRangesPerLine[$i] ?? [];
-            if ($diffRanges !== []) {
-                $highlightedLine = $this->highlighter->highlightWithDiffs($line, $diffRanges);
-            } else {
-                $highlightedLine = $this->highlighter->highlight($line);
+        // contentLineIdxsPerInstance[i] = list of original line indices that hold non-blank content
+        $contentLineIdxsPerInstance = [];
+        foreach ($allInstanceLines as $instanceLines) {
+            $idxs = [];
+            foreach ($instanceLines as $lineIdx => $line) {
+                if (trim($line) !== '') {
+                    $idxs[] = $lineIdx;
+                }
             }
-            $lineNum = $this->highlighter->formatLineNumber($startLine + $i, $width);
-            $separator = $this->highlighter->formatDim("\u{2502}");
-            $formatted[] = sprintf('  %s %s %s', $lineNum, $separator, $highlightedLine);
+            $contentLineIdxsPerInstance[] = $idxs;
         }
 
-        return implode("\n", $formatted);
+        $contentCount = count($contentLineIdxsPerInstance[0]);
+        foreach ($contentLineIdxsPerInstance as $idxs) {
+            if (count($idxs) !== $contentCount) {
+                return $this->renderPerInstanceFallback($subtrees, $allInstanceLines, $diffRangesPerInstance, $lineNumberWidth);
+            }
+        }
+
+        $separator = $this->highlighter->formatDim("\u{2502}");
+        $blankColumn = str_repeat(' ', $lineNumberWidth);
+        $firstSubtree = $subtrees[0] ?? null;
+        if ($firstSubtree === null) {
+            throw new LogicException('Unified rendering: clone group with no instances');
+        }
+
+        $output = [];
+        $contentIdx = 0;
+        foreach ($allInstanceLines[0] as $lineIdx => $line) {
+            if (trim($line) === '') {
+                $output[] = sprintf('  %s %s ', $blankColumn, $separator);
+                continue;
+            }
+
+            $variants = $this->collectVariantsAtPosition(
+                $contentIdx,
+                $allInstanceLines,
+                $contentLineIdxsPerInstance,
+                $diffRangesPerInstance,
+            );
+            $contentIdx++;
+
+            $firstVariant = $variants[0];
+            $firstTrimmed = trim($firstVariant[1]);
+            $allSame = true;
+            foreach ($variants as $variant) {
+                if (trim($variant[1]) !== $firstTrimmed) {
+                    $allSame = false;
+                    break;
+                }
+            }
+
+            if ($allSame) {
+                $sourceLine = $firstSubtree->getStartLine() + $lineIdx;
+                $output[] = sprintf(
+                    '  %s %s %s',
+                    $this->formatSourceLineNumber($firstSubtree, $sourceLine, $lineNumberWidth),
+                    $separator,
+                    $this->highlighter->highlight($firstVariant[1]),
+                );
+                continue;
+            }
+
+            foreach ($variants as [$instIdx, $instLine, $ranges, $origLineIdx]) {
+                $subtree = $subtrees[$instIdx] ?? null;
+                if ($subtree === null) {
+                    throw new LogicException('Unified rendering: variant points to missing subtree');
+                }
+                $sourceLine = $subtree->getStartLine() + $origLineIdx;
+                if ($ranges !== []) {
+                    $highlighted = $this->highlighter->highlightWithDiffs($instLine, $ranges);
+                } else {
+                    $highlighted = $this->highlighter->highlight($instLine);
+                }
+                $output[] = sprintf(
+                    '  %s %s %s',
+                    $this->formatSourceLineNumber($subtree, $sourceLine, $lineNumberWidth),
+                    $separator,
+                    $highlighted,
+                );
+            }
+        }
+
+        return implode("\n", $output);
+    }
+
+    /**
+     * Format a source line number, optionally wrapped in a clickable hyperlink.
+     */
+    private function formatSourceLineNumber(
+        Subtree $subtree,
+        int $sourceLine,
+        int $width,
+    ): string
+    {
+        $formatted = $this->highlighter->formatLineNumber($sourceLine, $width);
+        return $this->makeClickable($formatted, $subtree->getFilePath(), $sourceLine);
+    }
+
+    /**
+     * Collect each instance's line at a given content position along with its diff ranges.
+     *
+     * @param list<list<string>> $allInstanceLines
+     * @param non-empty-list<list<int>> $contentLineIdxsPerInstance
+     * @param list<list<list<array{int, int}>>> $diffRangesPerInstance
+     * @return non-empty-list<array{int, string, list<array{int, int}>, int}>
+     */
+    private function collectVariantsAtPosition(
+        int $contentIdx,
+        array $allInstanceLines,
+        array $contentLineIdxsPerInstance,
+        array $diffRangesPerInstance,
+    ): array
+    {
+        $variants = [];
+        foreach ($contentLineIdxsPerInstance as $instIdx => $idxs) {
+            if (!array_key_exists($contentIdx, $idxs) || !array_key_exists($instIdx, $allInstanceLines)) {
+                throw new LogicException('Unified rendering: content alignment broke unexpectedly');
+            }
+            $origLineIdx = $idxs[$contentIdx];
+            $instanceLines = $allInstanceLines[$instIdx];
+            if (!array_key_exists($origLineIdx, $instanceLines)) {
+                throw new LogicException('Unified rendering: original line index missing');
+            }
+            $ranges = $diffRangesPerInstance[$instIdx][$origLineIdx] ?? [];
+            $variants[] = [$instIdx, $instanceLines[$origLineIdx], $ranges, $origLineIdx];
+        }
+
+        return $variants;
+    }
+
+    /**
+     * Render each instance's code as a separate block, used when content-line
+     * counts across instances do not align for a unified view.
+     *
+     * @param list<Subtree> $subtrees
+     * @param list<list<string>> $allInstanceLines
+     * @param list<list<list<array{int, int}>>> $diffRangesPerInstance
+     */
+    private function renderPerInstanceFallback(
+        array $subtrees,
+        array $allInstanceLines,
+        array $diffRangesPerInstance,
+        int $lineNumberWidth,
+    ): string
+    {
+        $separator = $this->highlighter->formatDim("\u{2502}");
+        $output = [];
+        foreach ($allInstanceLines as $i => $instanceLines) {
+            $subtree = $subtrees[$i] ?? null;
+            if ($subtree === null) {
+                throw new LogicException('Fallback rendering: instance index has no matching subtree');
+            }
+            foreach ($instanceLines as $lineIdx => $line) {
+                $ranges = $diffRangesPerInstance[$i][$lineIdx] ?? [];
+                if ($ranges !== []) {
+                    $highlighted = $this->highlighter->highlightWithDiffs($line, $ranges);
+                } else {
+                    $highlighted = $this->highlighter->highlight($line);
+                }
+                $sourceLine = $subtree->getStartLine() + $lineIdx;
+                $output[] = sprintf(
+                    '  %s %s %s',
+                    $this->formatSourceLineNumber($subtree, $sourceLine, $lineNumberWidth),
+                    $separator,
+                    $highlighted,
+                );
+            }
+        }
+        return implode("\n", $output);
     }
 
     /**
