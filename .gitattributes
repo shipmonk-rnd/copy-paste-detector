@@ -11,3 +11,6 @@
 /phpstan.neon.dist export-ignore
 /phpunit.xml.dist export-ignore
 /composer.lock export-ignore
+/composer-dependency-analyser.php export-ignore
+/coverage-guard.php export-ignore
+/copy-paste-detector.php export-ignore
