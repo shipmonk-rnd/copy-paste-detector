@@ -1,0 +1,27 @@
+name: phpcs.xml lint
+on:
+    pull_request:
+    push:
+        branches:
+            - "master"
+            - "v[0-9]"
+    workflow_dispatch:
+
+jobs:
+    xml-linter:
+        runs-on: ubuntu-latest
+        steps:
+            -
+                name: Checkout code
+                uses: actions/checkout@v6
+
+            -
+                name: Install dependencies
+                run: composer update --no-progress --no-interaction
+
+            -
+                name: Lint
+                uses: ChristophWurst/xmllint-action@v1
+                with:
+                    xml-file: phpcs.xml.dist
+                    xml-schema-file: vendor/squizlabs/php_codesniffer/phpcs.xsd
