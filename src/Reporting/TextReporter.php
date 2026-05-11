@@ -342,9 +342,6 @@ final class TextReporter
 
         $labelWidth = $lineNumberWidth;
         foreach ($rows as $row) {
-            if ($row['kind'] !== 'code') {
-                continue;
-            }
             $width = $this->lineNumbersVisualWidth($row['lineNums']);
             if ($width > $labelWidth) {
                 $labelWidth = $width;
@@ -352,14 +349,8 @@ final class TextReporter
         }
 
         $separator = $this->highlighter->formatDim("\u{2502}");
-        $blankColumn = str_repeat(' ', $labelWidth);
-
         $output = [];
         foreach ($rows as $row) {
-            if ($row['kind'] === 'blank') {
-                $output[] = sprintf('  %s %s ', $blankColumn, $separator);
-                continue;
-            }
             $output[] = $this->renderCodeRow(
                 $row['lineNums'],
                 $row['text'],
@@ -417,7 +408,7 @@ final class TextReporter
      * @param non-empty-list<list<string>> $allInstanceLines
      * @param list<list<list<array{int, int}>>> $diffRangesPerInstance
      * @param non-empty-list<list<int>> $contentLineIdxsPerInstance
-     * @return list<array{kind: 'blank'} | array{kind: 'code', lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>, alternative: bool}>
+     * @return list<array{lineNums: non-empty-list<array{Subtree, int}>, text: string, ranges: list<array{int, int}>, alternative: bool}>
      */
     private function buildUnifiedRows(
         array $subtrees,
@@ -431,7 +422,14 @@ final class TextReporter
         $contentIdx = 0;
         foreach ($allInstanceLines[0] as $lineIdx => $line) {
             if (trim($line) === '') {
-                $rows[] = ['kind' => 'blank'];
+                // Blank lines render with the first instance's source line number so the
+                // line-number column stays unbroken.
+                $rows[] = [
+                    'lineNums' => [[$firstSubtree, $firstSubtree->getStartLine() + $lineIdx]],
+                    'text' => '',
+                    'ranges' => [],
+                    'alternative' => false,
+                ];
                 continue;
             }
 
@@ -459,7 +457,6 @@ final class TextReporter
 
             if ($allSame) {
                 $rows[] = [
-                    'kind' => 'code',
                     'lineNums' => [[$firstSubtree, $firstSubtree->getStartLine() + $lineIdx]],
                     'text' => $variants[0][2],
                     'ranges' => [],
@@ -493,7 +490,6 @@ final class TextReporter
             }
             foreach (array_values($groupsByKey) as $i => $group) {
                 $rows[] = [
-                    'kind' => 'code',
                     'lineNums' => $group['lineNums'],
                     'text' => $group['text'],
                     'ranges' => $group['ranges'],
@@ -594,7 +590,9 @@ final class TextReporter
         }
         // file() is 0-indexed but line numbers are 1-indexed.
         $relevantLines = array_slice($lines, $startLine - 1, $endLine - $startLine + 1);
-        return implode("\n", $relevantLines);
+        // Expand tabs to spaces so the line background stays continuous when rendered —
+        // terminals advance the cursor past a tab without filling cells with the active bg.
+        return str_replace("\t", '    ', implode("\n", $relevantLines));
     }
 
 }
