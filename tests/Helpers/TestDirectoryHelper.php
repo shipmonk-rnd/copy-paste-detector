@@ -2,9 +2,9 @@
 
 namespace ShipMonk\CopyPasteDetectorTests\Helpers;
 
-use function glob;
 use function is_dir;
 use function rmdir;
+use function scandir;
 use function unlink;
 
 final class TestDirectoryHelper
@@ -16,13 +16,17 @@ final class TestDirectoryHelper
             return;
         }
 
-        $files = glob($dir . '/*');
-        if ($files !== false) {
-            foreach ($files as $file) {
-                if (is_dir($file)) {
-                    self::removeDirectory($file);
+        $entries = scandir($dir);
+        if ($entries !== false) {
+            foreach ($entries as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                $path = $dir . '/' . $entry;
+                if (is_dir($path)) {
+                    self::removeDirectory($path);
                 } else {
-                    unlink($file);
+                    unlink($path);
                 }
             }
         }

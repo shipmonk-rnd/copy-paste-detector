@@ -36,6 +36,22 @@ vendor/bin/copy-paste-detector src/
   - Defaults to system temp directory
 
 
+- `--patch=changes.patch`
+  - Path to a git diff/patch file (extension must be `.patch` or `.diff`)
+  - Only reports clone groups with at least one instance fully inside the patch's added lines.
+  - Requires `sebastian/diff` to be installed.
+
+
+## Check if MR copied code from elsewhere
+
+```bash
+git diff master...HEAD > changes.patch
+vendor/bin/copy-paste-detector --patch=changes.patch src/ tests/
+```
+
+- A clone group is reported if at least one instance lies fully inside the patch's added lines. The other instances may be either elsewhere in the codebase or also inside the patch.
+
+
 ## Configuration File
 
 Create a `copy-paste-detector.php` file in your project root to configure detection settings:

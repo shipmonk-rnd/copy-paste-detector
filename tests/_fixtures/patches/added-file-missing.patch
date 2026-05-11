@@ -1,0 +1,7 @@
+diff --git a/src/Ghost.php b/src/Ghost.php
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/Ghost.php
+@@ -0,0 +1,1 @@
++<?php

@@ -1,0 +1,5 @@
+diff --git foo/Sample.php foo/Sample.php
+--- foo/Sample.php
++++ foo/Sample.php
+@@ -0,0 +1 @@
++<?php

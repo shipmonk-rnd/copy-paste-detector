@@ -1,0 +1,7 @@
+diff --git a/src/Sample.php b/src/Sample.php
+index 0000000..1111111 100644
+--- a/src/Sample.php
++++ b/src/Sample.php
+@@ -1,1 +1,2 @@
+ <?php
++expected content

@@ -56,6 +56,8 @@ final class CloneDetector
      * @param int $minNodeCount Minimum number of nodes for a subtree to be considered
      * @param OutputInterface|null $output Optional output interface for verbose logging
      * @param SubtreeCache|null $cache Optional cache for storing/retrieving subtrees
+     * @param ChangedLines|null $changedLines When provided, only clone groups containing ≥1 instance
+     *                                        inside the changed lines are reported.
      * @return list<CloneGroup> Array of detected clone groups (each containing 2+ identical subtrees)
      *
      * @throws ErrorException
@@ -65,6 +67,7 @@ final class CloneDetector
         int $minNodeCount,
         ?OutputInterface $output,
         ?SubtreeCache $cache,
+        ?ChangedLines $changedLines = null,
     ): array
     {
         $this->output = $output;
@@ -76,6 +79,12 @@ final class CloneDetector
         $hashIndex = $this->buildHashIndex($allSubtrees);
 
         $cloneGroups = $this->createCloneGroups($hashIndex);
+
+        // Patch filter must run before subsumption
+        if ($changedLines !== null) {
+            $cloneGroups = (new PatchFilter($changedLines))->filter($cloneGroups);
+        }
+
         $cloneGroups = $this->subsumptionFilter->filter($cloneGroups);
         $this->sortCloneGroups($cloneGroups);
 
