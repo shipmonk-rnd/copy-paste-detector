@@ -7,7 +7,9 @@ use PhpParser\NodeTraverser;
 use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
 
 /**
- * Extracts all subtrees from an AST that meet the minimum node count threshold
+ * Extracts all subtrees from an AST that meet the minimum node count threshold,
+ * plus every sibling-stmt list (any array<Node> AST member with ≥ 2 Node entries)
+ * for downstream sequence-clone detection.
  */
 final class SubtreeExtractor
 {
@@ -19,18 +21,15 @@ final class SubtreeExtractor
     }
 
     /**
-     * Extract all subtrees from an AST that have at least minNodeCount nodes
-     *
      * @param list<Stmt> $ast Array of AST nodes (statements)
      * @param string $filePath Source file path for metadata
      * @param int $minNodeCount Minimum number of nodes required for a subtree
-     * @return list<Subtree> Array of extracted subtrees
      */
     public function extract(
         array $ast,
         string $filePath,
         int $minNodeCount,
-    ): array
+    ): ExtractionResult
     {
         $visitor = new SubtreeVisitor($minNodeCount, $filePath, $this->hasher);
 
@@ -38,7 +37,10 @@ final class SubtreeExtractor
         $traverser->addVisitor($visitor);
         $traverser->traverse($ast);
 
-        return $visitor->getSubtrees();
+        return new ExtractionResult(
+            $visitor->getSubtrees(),
+            $visitor->getSiblingLists(),
+        );
     }
 
 }

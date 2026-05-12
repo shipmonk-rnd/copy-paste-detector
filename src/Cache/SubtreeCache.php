@@ -4,6 +4,8 @@ namespace ShipMonk\CopyPasteDetector\Cache;
 
 use JsonException;
 use LogicException;
+use ShipMonk\CopyPasteDetector\AST\ExtractionResult;
+use ShipMonk\CopyPasteDetector\AST\SiblingList;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
 use ShipMonk\CopyPasteDetector\Config\AnonymizationSettings;
 use function array_map;
@@ -23,7 +25,8 @@ use function serialize;
 use const JSON_THROW_ON_ERROR;
 
 /**
- * Caches parsed subtrees to avoid re-parsing unchanged files
+ * Caches parsed subtrees (and sibling-stmt lists used by sequence-clone
+ * detection) to avoid re-parsing unchanged files.
  */
 final class SubtreeCache
 {
@@ -47,16 +50,14 @@ final class SubtreeCache
     }
 
     /**
-     * Get cached subtrees for a file if cache is valid
-     *
      * @param string $filePath Path to the source file
      * @param int $minNodeCount Minimum node count threshold used for extraction
-     * @return list<Subtree>|null Array of subtrees if cache is valid, null otherwise
+     * @return ExtractionResult|null Cached result if cache is valid, null otherwise
      */
     public function get(
         string $filePath,
         int $minNodeCount,
-    ): ?array
+    ): ?ExtractionResult
     {
         if (!file_exists($filePath)) {
             return null;
@@ -67,7 +68,6 @@ final class SubtreeCache
             return null;
         }
 
-        // Check if cache is still valid (file hasn't changed)
         $currentHash = $this->getFileHash($filePath);
         $cacheData = file_get_contents($cacheFile);
         if ($cacheData === false) {
@@ -80,29 +80,36 @@ final class SubtreeCache
             throw new LogicException("Failed to decode cache file '{$cacheFile}': {$e->getMessage()}", 0, $e);
         }
 
-        if (!is_array($cached) || !isset($cached['hash']) || !isset($cached['subtrees']) || !is_array($cached['subtrees'])) {
-            return null; // Invalid cache format, treat as cache miss
+        if (
+            !is_array($cached)
+            || !isset($cached['hash'], $cached['subtrees'], $cached['siblingLists'])
+            || !is_array($cached['subtrees'])
+            || !is_array($cached['siblingLists'])
+        ) {
+            return null;
         }
 
-        // Validate cache is for same file version
         if ($cached['hash'] !== $currentHash) {
             return null;
         }
 
-        return $this->deserializeSubtrees($cached['subtrees']);
+        $subtrees = $this->deserializeSubtrees($cached['subtrees'], $filePath);
+        if ($subtrees === null) {
+            return null;
+        }
+
+        $siblingLists = $this->deserializeSiblingLists($cached['siblingLists'], $filePath);
+        if ($siblingLists === null) {
+            return null;
+        }
+
+        return new ExtractionResult($subtrees, $siblingLists);
     }
 
-    /**
-     * Store subtrees in cache
-     *
-     * @param string $filePath Path to the source file
-     * @param int $minNodeCount Minimum node count threshold used for extraction
-     * @param list<Subtree> $subtrees Extracted subtrees to cache
-     */
     public function set(
         string $filePath,
         int $minNodeCount,
-        array $subtrees,
+        ExtractionResult $result,
     ): void
     {
         if (!file_exists($filePath)) {
@@ -114,7 +121,8 @@ final class SubtreeCache
 
         $cacheData = [
             'hash' => $fileHash,
-            'subtrees' => $this->serializeSubtrees($subtrees),
+            'subtrees' => $this->serializeSubtrees($result->getSubtrees()),
+            'siblingLists' => $this->serializeSiblingLists($result->getSiblingLists()),
         ];
 
         try {
@@ -123,21 +131,21 @@ final class SubtreeCache
             throw new LogicException("Failed to encode cache data: {$e->getMessage()}", 0, $e);
         }
 
-        $result = file_put_contents($cacheFile, $json);
-        if ($result === false) {
+        $written = file_put_contents($cacheFile, $json);
+        if ($written === false) {
             throw new LogicException("Failed to write cache file '{$cacheFile}'");
         }
     }
 
     /**
      * @param list<Subtree> $subtrees
-     * @return list<array{filePath: string, startLine: int, endLine: int, nodeCount: int, hash: string}>
+     * @return list<array{startLine: int, endLine: int, nodeCount: int, hash: string}>
      */
     private function serializeSubtrees(array $subtrees): array
     {
+        // filePath is omitted - we know it from the cache key context.
         return array_map(
             static fn (Subtree $subtree): array => [
-                'filePath' => $subtree->getFilePath(),
                 'startLine' => $subtree->getStartLine(),
                 'endLine' => $subtree->getEndLine(),
                 'nodeCount' => $subtree->getNodeCount(),
@@ -151,38 +159,95 @@ final class SubtreeCache
      * @param array<mixed> $data
      * @return list<Subtree>|null
      */
-    private function deserializeSubtrees(array $data): ?array
+    private function deserializeSubtrees(
+        array $data,
+        string $filePath,
+    ): ?array
     {
         $subtrees = [];
 
         foreach ($data as $item) {
-            if (
-                !is_array($item)
-                || !isset($item['filePath'], $item['startLine'], $item['endLine'], $item['nodeCount'], $item['hash'])
-                || !is_string($item['filePath'])
-                || !is_int($item['startLine'])
-                || !is_int($item['endLine'])
-                || !is_int($item['nodeCount'])
-                || !is_string($item['hash'])
-            ) {
-                return null; // Invalid data, treat as cache miss
+            $subtree = $this->deserializeSubtree($item, $filePath);
+            if ($subtree === null) {
+                return null;
             }
-
-            $subtrees[] = new Subtree(
-                $item['filePath'],
-                $item['startLine'],
-                $item['endLine'],
-                $item['nodeCount'],
-                $item['hash'],
-            );
+            $subtrees[] = $subtree;
         }
 
         return $subtrees;
     }
 
     /**
-     * Get cache file path for a source file, minNodeCount, and anonymization settings
+     * @param list<SiblingList> $siblingLists
+     * @return list<list<array{startLine: int, endLine: int, nodeCount: int, hash: string}>>
      */
+    private function serializeSiblingLists(array $siblingLists): array
+    {
+        return array_map(
+            fn (SiblingList $list): array => $this->serializeSubtrees($list->getStmts()),
+            $siblingLists,
+        );
+    }
+
+    /**
+     * @param array<mixed> $data
+     * @return list<SiblingList>|null
+     */
+    private function deserializeSiblingLists(
+        array $data,
+        string $filePath,
+    ): ?array
+    {
+        $siblingLists = [];
+
+        foreach ($data as $item) {
+            if (!is_array($item)) {
+                return null;
+            }
+
+            $stmts = [];
+            foreach ($item as $stmtItem) {
+                $stmt = $this->deserializeSubtree($stmtItem, $filePath);
+                if ($stmt === null) {
+                    return null;
+                }
+                $stmts[] = $stmt;
+            }
+
+            $siblingLists[] = new SiblingList($filePath, $stmts);
+        }
+
+        return $siblingLists;
+    }
+
+    /**
+     * @param mixed $item
+     */
+    private function deserializeSubtree(
+        $item,
+        string $filePath,
+    ): ?Subtree
+    {
+        if (
+            !is_array($item)
+            || !isset($item['startLine'], $item['endLine'], $item['nodeCount'], $item['hash'])
+            || !is_int($item['startLine'])
+            || !is_int($item['endLine'])
+            || !is_int($item['nodeCount'])
+            || !is_string($item['hash'])
+        ) {
+            return null;
+        }
+
+        return new Subtree(
+            $filePath,
+            $item['startLine'],
+            $item['endLine'],
+            $item['nodeCount'],
+            $item['hash'],
+        );
+    }
+
     private function getCacheFilePath(
         string $filePath,
         int $minNodeCount,
@@ -202,9 +267,6 @@ final class SubtreeCache
         return $this->cacheDir . '/' . $key . '.cache';
     }
 
-    /**
-     * Get hash of file contents
-     */
     private function getFileHash(string $filePath): string
     {
         $hash = md5_file($filePath);

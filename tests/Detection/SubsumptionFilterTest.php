@@ -16,7 +16,11 @@ final class SubsumptionFilterTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->detector = new CloneDetector(new Config());
+        $config = new Config();
+        // These tests focus on subsumption between whole-subtree clones; the
+        // sequence-clone path is covered separately and would change shapes here.
+        $config->setSequenceDetectionEnabled(false);
+        $this->detector = new CloneDetector($config);
     }
 
     /**

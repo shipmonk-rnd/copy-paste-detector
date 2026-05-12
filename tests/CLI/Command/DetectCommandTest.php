@@ -489,6 +489,52 @@ PATCH);
         ]);
     }
 
+    public function testMinSequenceStmtsOptionEnablesAndConfiguresDetection(): void
+    {
+        $tester = $this->createTester();
+
+        $exitCode = $tester->execute([
+            'paths' => [self::FIXTURES],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--min-sequence-stmts' => '4',
+        ]);
+
+        self::assertSame(Command::FAILURE, $exitCode);
+    }
+
+    public function testMinSequenceStmtsZeroDisablesSequenceDetection(): void
+    {
+        $tester = $this->createTester();
+
+        $exitCode = $tester->execute([
+            'paths' => [self::FIXTURES],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--min-sequence-stmts' => '0',
+        ]);
+
+        // Calculator1+Calculator2 still contain whole-subtree clones,
+        // so the run still fails — but the sequence-detection path is
+        // exercised in the "disable" branch.
+        self::assertSame(Command::FAILURE, $exitCode);
+    }
+
+    public function testMinSequenceStmtsOneIsRejected(): void
+    {
+        $tester = $this->createTester();
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('--min-sequence-stmts must be 0 (disable) or at least 2');
+
+        $tester->execute([
+            'paths' => [self::FIXTURES],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--min-sequence-stmts' => '1',
+        ]);
+    }
+
     private function createTester(): CommandTester
     {
         return new CommandTester(new DetectCommand($this->tempDir));

@@ -93,6 +93,12 @@ final class DetectCommand extends Command
                 InputOption::VALUE_REQUIRED,
                 'Path to git diff/patch file. Report only clone groups with at least one instance inside the patch\'s added lines.',
             )
+            ->addOption(
+                'min-sequence-stmts',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Minimum number of statements in a cloned sibling-statement sequence (default: 3). Set to 0 to disable sequence detection.',
+            )
             ->setHelp(<<<'HELP'
 The <info>detect</info> command analyzes PHP files for structural code clones.
 
@@ -105,10 +111,11 @@ It uses subtree hashing (similar to CloneDR) to find exact structural duplicates
     <info>php bin/copy-paste-detector detect src/ --config=my-config.php</info>
 
 <comment>Options:</comment>
-    <info>--config</info>            Path to config file (default: copy-paste-detector.php)
-    <info>--min-node-count</info>    Minimum nodes in a subtree (higher = fewer, larger clones)
-    <info>--cache-dir</info>         Directory for caching parsed subtrees
-    <info>--patch</info>             Patch file; only report clones touching its added lines
+    <info>--config</info>              Path to config file (default: copy-paste-detector.php)
+    <info>--min-node-count</info>      Minimum nodes in a subtree (higher = fewer, larger clones)
+    <info>--cache-dir</info>           Directory for caching parsed subtrees
+    <info>--patch</info>               Patch file; only report clones touching its added lines
+    <info>--min-sequence-stmts</info>  Minimum stmts in a sibling-stmt sequence clone (0 = disable)
 HELP,);
     }
 
@@ -137,6 +144,7 @@ HELP,);
         [$cacheDir, $usingDefaultCacheDir, $cliOverrideCacheDir] = $this->resolveCacheDir($input, $config);
         [$minNodeCount, $usingDefaultMinNodeCount, $cliOverrideMinNodeCount] = $this->resolveMinNodeCount($input, $config);
         [$paths, $usingDefaultPaths, $overriddenConfigPaths] = $this->resolvePaths($input, $config);
+        $this->applySequenceOption($input, $config);
         $changedLines = $this->resolveChangedLines($input, $stderr);
 
         $realExcludePaths = $this->resolveExcludePaths($config);
@@ -356,6 +364,34 @@ HELP,);
         }
 
         return [$paths, $usingDefault, $overriddenConfigPaths];
+    }
+
+    /**
+     * @throws ErrorException
+     */
+    private function applySequenceOption(
+        InputInterface $input,
+        Config $config,
+    ): void
+    {
+        $option = $input->getOption('min-sequence-stmts');
+        if ($option === null) {
+            return;
+        }
+
+        $value = (int) $option; // @phpstan-ignore cast.int
+
+        if ($value <= 0) {
+            $config->setSequenceDetectionEnabled(false);
+            return;
+        }
+
+        if ($value < 2) {
+            throw new ErrorException('--min-sequence-stmts must be 0 (disable) or at least 2');
+        }
+
+        $config->setSequenceDetectionEnabled(true);
+        $config->setSequenceMinStmts($value);
     }
 
     /**

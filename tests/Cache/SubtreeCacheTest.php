@@ -3,6 +3,7 @@
 namespace ShipMonk\CopyPasteDetectorTests\Cache;
 
 use PHPUnit\Framework\TestCase;
+use ShipMonk\CopyPasteDetector\AST\ExtractionResult;
 use ShipMonk\CopyPasteDetector\AST\Parser;
 use ShipMonk\CopyPasteDetector\AST\SubtreeExtractor;
 use ShipMonk\CopyPasteDetector\Cache\SubtreeCache;
@@ -72,28 +73,28 @@ final class SubtreeCacheTest extends TestCase
             }
         ');
 
-        // Parse and extract subtrees from real code
         $parser = new Parser();
         $extractor = $this->createSubtreeExtractor();
         $ast = $parser->parseFile($file);
-        $subtrees = $extractor->extract($ast, $file, minNodeCount: 5);
+        $extracted = $extractor->extract($ast, $file, minNodeCount: 5);
 
-        // Store in cache
-        $cache->set($file, 5, $subtrees);
-
-        // Retrieve from cache
+        $cache->set($file, 5, $extracted);
         $cached = $cache->get($file, 5);
 
         self::assertNotNull($cached);
-        self::assertCount(count($subtrees), $cached);
 
-        // Verify subtree data integrity
-        foreach ($cached as $i => $subtree) {
-            self::assertArrayHasKey($i, $subtrees);
-            self::assertSame($subtrees[$i]->getFilePath(), $subtree->getFilePath());
-            self::assertSame($subtrees[$i]->getNodeCount(), $subtree->getNodeCount());
-            self::assertSame($subtrees[$i]->getHash(), $subtree->getHash());
+        $originalSubtrees = $extracted->getSubtrees();
+        $cachedSubtrees = $cached->getSubtrees();
+        self::assertCount(count($originalSubtrees), $cachedSubtrees);
+
+        foreach ($cachedSubtrees as $i => $subtree) {
+            self::assertArrayHasKey($i, $originalSubtrees);
+            self::assertSame($originalSubtrees[$i]->getFilePath(), $subtree->getFilePath());
+            self::assertSame($originalSubtrees[$i]->getNodeCount(), $subtree->getNodeCount());
+            self::assertSame($originalSubtrees[$i]->getHash(), $subtree->getHash());
         }
+
+        self::assertCount(count($extracted->getSiblingLists()), $cached->getSiblingLists());
     }
 
     public function testCacheInvalidatedWhenFileChanges(): void
@@ -104,18 +105,14 @@ final class SubtreeCacheTest extends TestCase
         $parser = new Parser();
         $extractor = $this->createSubtreeExtractor();
         $ast = $parser->parseFile($file);
-        $subtrees = $extractor->extract($ast, $file, minNodeCount: 1);
+        $extracted = $extractor->extract($ast, $file, minNodeCount: 1);
 
-        // Store in cache
-        $cache->set($file, 1, $subtrees);
+        $cache->set($file, 1, $extracted);
 
-        // Verify cache hit
         self::assertNotNull($cache->get($file, 1));
 
-        // Modify file content
         file_put_contents($file, '<?php $y = 2; $z = 3;');
 
-        // Cache should be invalidated
         self::assertNull($cache->get($file, 1));
     }
 
@@ -132,21 +129,19 @@ final class SubtreeCacheTest extends TestCase
         $parser = new Parser();
         $extractor = $this->createSubtreeExtractor();
         $ast = $parser->parseFile($file);
-        $subtrees5 = $extractor->extract($ast, $file, minNodeCount: 5);
-        $subtrees10 = $extractor->extract($ast, $file, minNodeCount: 10);
+        $extracted5 = $extractor->extract($ast, $file, minNodeCount: 5);
+        $extracted10 = $extractor->extract($ast, $file, minNodeCount: 10);
 
-        // Store with different minNodeCount values
-        $cache->set($file, 5, $subtrees5);
-        $cache->set($file, 10, $subtrees10);
+        $cache->set($file, 5, $extracted5);
+        $cache->set($file, 10, $extracted10);
 
-        // Retrieve separately
         $cached5 = $cache->get($file, 5);
         $cached10 = $cache->get($file, 10);
 
         self::assertNotNull($cached5);
         self::assertNotNull($cached10);
-        self::assertCount(count($subtrees5), $cached5);
-        self::assertCount(count($subtrees10), $cached10);
+        self::assertCount(count($extracted5->getSubtrees()), $cached5->getSubtrees());
+        self::assertCount(count($extracted10->getSubtrees()), $cached10->getSubtrees());
     }
 
     public function testDifferentAnonymizationSettingsUseSeparateCache(): void
@@ -161,9 +156,8 @@ final class SubtreeCacheTest extends TestCase
         $parser = new Parser();
         $extractor = $this->createSubtreeExtractor();
         $ast = $parser->parseFile($file);
-        $subtrees = $extractor->extract($ast, $file, minNodeCount: 5);
+        $extracted = $extractor->extract($ast, $file, minNodeCount: 5);
 
-        // Store with one anonymization settings
         $settings1 = new AnonymizationSettings(
             variables: true,
             literals: false,
@@ -171,12 +165,10 @@ final class SubtreeCacheTest extends TestCase
             identifiers: false,
         );
         $cache1 = new SubtreeCache($this->cacheDir, $settings1);
-        $cache1->set($file, 5, $subtrees);
+        $cache1->set($file, 5, $extracted);
 
-        // Verify cache hit with same settings
         self::assertNotNull($cache1->get($file, 5));
 
-        // Cache with different anonymization settings should miss
         $settings2 = new AnonymizationSettings(
             variables: true,
             literals: true,
@@ -191,10 +183,8 @@ final class SubtreeCacheTest extends TestCase
     {
         $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
 
-        // Should not throw, just silently ignore
-        $cache->set('/nonexistent/file.php', 10, []);
+        $cache->set('/nonexistent/file.php', 10, new ExtractionResult([], []));
 
-        // No cache should be created
         self::assertNull($cache->get('/nonexistent/file.php', 10));
     }
 
