@@ -9,8 +9,10 @@ use ShipMonk\CopyPasteDetector\Cache\SubtreeCache;
 use ShipMonk\CopyPasteDetector\Config\Config;
 use ShipMonk\CopyPasteDetector\Config\ConfigResolver;
 use ShipMonk\CopyPasteDetector\Config\ResolvedConfig;
+use ShipMonk\CopyPasteDetector\Detection\ChangedLines;
 use ShipMonk\CopyPasteDetector\Detection\CloneDetector;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
+use ShipMonk\CopyPasteDetector\Detection\PatchParser;
 use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 use ShipMonk\CopyPasteDetector\Reporting\LineDiffer;
 use ShipMonk\CopyPasteDetector\Reporting\SyntaxHighlighter;
@@ -85,6 +87,18 @@ final class DetectCommand extends Command
                 InputOption::VALUE_REQUIRED,
                 'Directory for caching parsed subtrees (default: system temp directory)',
             )
+            ->addOption(
+                'patch',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Path to git diff/patch file. Report only clone groups with at least one instance inside the patch\'s added lines.',
+            )
+            ->addOption(
+                'min-sequence-stmts',
+                null,
+                InputOption::VALUE_REQUIRED,
+                'Minimum number of statements in a cloned sibling-statement sequence (default: 3). Set to 0 to disable sequence detection.',
+            )
             ->setHelp(<<<'HELP'
 The <info>detect</info> command analyzes PHP files for structural code clones.
 
@@ -97,9 +111,11 @@ It uses subtree hashing (similar to CloneDR) to find exact structural duplicates
     <info>php bin/copy-paste-detector detect src/ --config=my-config.php</info>
 
 <comment>Options:</comment>
-    <info>--config</info>            Path to config file (default: copy-paste-detector.php)
-    <info>--min-node-count</info>    Minimum nodes in a subtree (higher = fewer, larger clones)
-    <info>--cache-dir</info>         Directory for caching parsed subtrees
+    <info>--config</info>              Path to config file (default: copy-paste-detector.php)
+    <info>--min-node-count</info>      Minimum nodes in a subtree (higher = fewer, larger clones)
+    <info>--cache-dir</info>           Directory for caching parsed subtrees
+    <info>--patch</info>               Patch file; only report clones touching its added lines
+    <info>--min-sequence-stmts</info>  Minimum stmts in a sibling-stmt sequence clone (0 = disable)
 HELP,);
     }
 
@@ -128,6 +144,8 @@ HELP,);
         [$cacheDir, $usingDefaultCacheDir, $cliOverrideCacheDir] = $this->resolveCacheDir($input, $config);
         [$minNodeCount, $usingDefaultMinNodeCount, $cliOverrideMinNodeCount] = $this->resolveMinNodeCount($input, $config);
         [$paths, $usingDefaultPaths, $overriddenConfigPaths] = $this->resolvePaths($input, $config);
+        $this->applySequenceOption($input, $config);
+        $changedLines = $this->resolveChangedLines($input, $stderr);
 
         $realExcludePaths = $this->resolveExcludePaths($config);
         $this->warnAboutIneffectiveExcludes($paths, $realExcludePaths, $stderr);
@@ -152,10 +170,10 @@ HELP,);
         );
 
         $startTime = microtime(true);
-        $cloneGroups = $this->detectClones($files, $config, $minNodeCount, $cacheDir, $stderr);
+        $cloneGroups = $this->detectClones($files, $config, $minNodeCount, $cacheDir, $stderr, $changedLines);
         $elapsedTime = microtime(true) - $startTime;
 
-        $this->outputReport($cloneGroups, $elapsedTime, $output, $config->getEditorUrl());
+        $this->outputReport($cloneGroups, $elapsedTime, $output, $config->getEditorUrl(), $changedLines);
 
         return count($cloneGroups) === 0 ? Command::SUCCESS : Command::FAILURE;
     }
@@ -349,6 +367,58 @@ HELP,);
     }
 
     /**
+     * @throws ErrorException
+     */
+    private function applySequenceOption(
+        InputInterface $input,
+        Config $config,
+    ): void
+    {
+        $option = $input->getOption('min-sequence-stmts');
+        if ($option === null) {
+            return;
+        }
+
+        $value = (int) $option; // @phpstan-ignore cast.int
+
+        if ($value <= 0) {
+            $config->setSequenceDetectionEnabled(false);
+            return;
+        }
+
+        if ($value < 2) {
+            throw new ErrorException('--min-sequence-stmts must be 0 (disable) or at least 2');
+        }
+
+        $config->setSequenceDetectionEnabled(true);
+        $config->setSequenceMinStmts($value);
+    }
+
+    /**
+     * @throws ErrorException
+     */
+    private function resolveChangedLines(
+        InputInterface $input,
+        OutputInterface $stderr,
+    ): ?ChangedLines
+    {
+        $patchOption = $input->getOption('patch');
+
+        if ($patchOption === null) {
+            return null;
+        }
+
+        if (!is_string($patchOption)) {
+            throw new LogicException('Patch option must be a string or null');
+        }
+
+        $changedLines = (new PatchParser($this->cwd))->parse($patchOption);
+        $stderr->writeln(sprintf('Patch: <fg=#aaaaaa>%s</>', $this->relativizePath($patchOption)));
+
+        return $changedLines;
+    }
+
+    /**
      * @param list<string> $paths
      * @param list<string>|null $overriddenConfigPaths
      * @param list<string> $realExcludePaths
@@ -412,6 +482,7 @@ HELP,);
         int $minNodeCount,
         string $cacheDir,
         OutputInterface $stderr,
+        ?ChangedLines $changedLines,
     ): array
     {
         $cache = new SubtreeCache($cacheDir, $config->getAnonymizationSettings());
@@ -422,6 +493,7 @@ HELP,);
             $minNodeCount,
             $stderr,
             $cache,
+            $changedLines,
         );
     }
 
@@ -433,10 +505,11 @@ HELP,);
         float $elapsedTime,
         OutputInterface $output,
         ?string $editorUrl,
+        ?ChangedLines $changedLines,
     ): void
     {
         $highlighter = new SyntaxHighlighter($output->isDecorated());
-        $reporter = new TextReporter($highlighter, new LineDiffer(), $editorUrl);
+        $reporter = new TextReporter($highlighter, new LineDiffer(), $editorUrl, $changedLines);
         $report = $reporter->report($cloneGroups, $elapsedTime);
 
         $output->writeln($report);

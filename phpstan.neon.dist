@@ -41,6 +41,8 @@ parameters:
         -
             identifier: missingType.checkedException
             path: tests/*
+
+       # support variety of symfony/console versions
         -
             message: '#^Variable method call on \$this\(ShipMonk\\CopyPasteDetector\\CLI\\Application\)\.$#'
             path: src/CLI/Application.php
@@ -52,6 +54,11 @@ parameters:
             message: '#^Call to an undefined method ShipMonk\\CopyPasteDetector\\CLI\\Application::add\(\)\.$#'
             path: src/CLI/Application.php
             reportUnmatched: false
+
+        # support sebastian/diff v4 and v5+
+        -
+            message: "#Call to function method_exists\\(\\) with SebastianBergmann\\\\Diff.*#"
+            path: src/Detection/PatchParser.php
 
     shipmonkDeadCode:
         detect:

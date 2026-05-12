@@ -32,6 +32,9 @@ final class Config
     private bool $anonymizeNames = false;
     private bool $anonymizeIdentifiers = false;
 
+    private bool $sequenceDetectionEnabled = true;
+    private int $sequenceMinStmts = 3;
+
     public function __construct()
     {
     }
@@ -212,6 +215,43 @@ final class Config
     public function shouldAnonymizeIdentifiers(): bool
     {
         return $this->anonymizeIdentifiers;
+    }
+
+    /**
+     * Enable or disable detection of cloned sequences of sibling statements
+     * (statement-list slices that aren't bounded by a single AST node).
+     * Default: true.
+     */
+    public function setSequenceDetectionEnabled(bool $enabled): self
+    {
+        $this->sequenceDetectionEnabled = $enabled;
+        return $this;
+    }
+
+    /**
+     * Minimum number of consecutive statements required for a sequence clone.
+     * Lower values find more (and shorter) clones. Default: 3.
+     *
+     * @throws LogicException
+     */
+    public function setSequenceMinStmts(int $minStmts): self
+    {
+        if ($minStmts < 2) {
+            throw new LogicException('sequenceMinStmts must be at least 2');
+        }
+
+        $this->sequenceMinStmts = $minStmts;
+        return $this;
+    }
+
+    public function isSequenceDetectionEnabled(): bool
+    {
+        return $this->sequenceDetectionEnabled;
+    }
+
+    public function getSequenceMinStmts(): int
+    {
+        return $this->sequenceMinStmts;
     }
 
     /**

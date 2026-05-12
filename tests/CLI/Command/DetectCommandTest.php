@@ -8,9 +8,13 @@ use ShipMonk\CopyPasteDetector\Exception\ErrorException;
 use ShipMonk\CopyPasteDetectorTests\Helpers\TestDirectoryHelper;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
+use function count;
+use function explode;
 use function file_put_contents;
 use function glob;
+use function implode;
 use function mkdir;
+use function rtrim;
 use function sprintf;
 use function sys_get_temp_dir;
 use function uniqid;
@@ -283,6 +287,190 @@ final class DetectCommandTest extends TestCase
         self::assertStringContainsString('Calculator1.php', $tester->getDisplay());
     }
 
+    public function testPatchModeReportsOnlyClonesTouchingChangedLines(): void
+    {
+        $gitRoot = $this->tempDir . '/repo';
+        $srcDir = $gitRoot . '/src';
+        mkdir($srcDir, 0755, true);
+        file_put_contents($gitRoot . '/.git', '');
+
+        $foreachBody = <<<'BODY'
+        $result = 0;
+        foreach ($numbers as $number) {
+            if ($number > 0) {
+                $result += $number;
+            }
+        }
+        return $result;
+BODY;
+
+        $existing = "<?php\nfunction sumExisting(array \$numbers): int {\n{$foreachBody}\n}\n";
+        $newCalc = "<?php\nfunction sumNew(array \$numbers): int {\n{$foreachBody}\n}\n";
+
+        file_put_contents($srcDir . '/Existing.php', $existing);
+        file_put_contents($srcDir . '/NewCalc.php', $newCalc);
+
+        // Build a patch that adds NewCalc.php in full (so every line of the file is a changed line).
+        $patchLines = [];
+        foreach (explode("\n", rtrim($newCalc, "\n")) as $line) {
+            $patchLines[] = '+' . $line;
+        }
+        $hunkCount = count($patchLines);
+
+        $patchFile = $this->tempDir . '/changes.patch';
+        file_put_contents($patchFile, <<<PATCH
+diff --git a/src/NewCalc.php b/src/NewCalc.php
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/NewCalc.php
+@@ -0,0 +1,{$hunkCount} @@
+{$this->joinLines($patchLines)}
+PATCH);
+
+        $tester = new CommandTester(new DetectCommand($gitRoot));
+
+        $exitCode = $tester->execute([
+            'paths' => [$srcDir],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--patch' => $patchFile,
+        ]);
+
+        $display = $tester->getDisplay();
+
+        self::assertSame(Command::FAILURE, $exitCode);
+        self::assertStringContainsString('Patch:', $display);
+        self::assertStringContainsString('NewCalc.php', $display);
+        self::assertStringContainsString('Existing.php', $display);
+        self::assertStringContainsString('new ↔', $display);
+    }
+
+    public function testPatchModeReportsIntraMrDuplication(): void
+    {
+        $gitRoot = $this->tempDir . '/repo';
+        $srcDir = $gitRoot . '/src';
+        mkdir($srcDir, 0755, true);
+        file_put_contents($gitRoot . '/.git', '');
+
+        // Single new file containing two copy-pasted functions — both instances
+        // live inside the patch, but the duplication is introduced by the MR.
+        $body = <<<'BODY'
+<?php
+function sumA(array $items): int {
+    $result = 0;
+    foreach ($items as $item) {
+        if ($item > 0) {
+            $result += $item;
+        }
+    }
+    return $result;
+}
+
+function sumB(array $items): int {
+    $result = 0;
+    foreach ($items as $item) {
+        if ($item > 0) {
+            $result += $item;
+        }
+    }
+    return $result;
+}
+BODY;
+
+        $newFile = $srcDir . '/Dupes.php';
+        file_put_contents($newFile, $body);
+
+        $patchLines = [];
+        foreach (explode("\n", rtrim($body, "\n")) as $line) {
+            $patchLines[] = '+' . $line;
+        }
+        $hunkCount = count($patchLines);
+
+        $patchFile = $this->tempDir . '/changes.patch';
+        file_put_contents($patchFile, <<<PATCH
+diff --git a/src/Dupes.php b/src/Dupes.php
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/Dupes.php
+@@ -0,0 +1,{$hunkCount} @@
+{$this->joinLines($patchLines)}
+PATCH);
+
+        $tester = new CommandTester(new DetectCommand($gitRoot));
+
+        $exitCode = $tester->execute([
+            'paths' => [$srcDir],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--patch' => $patchFile,
+        ]);
+
+        $display = $tester->getDisplay();
+
+        self::assertSame(Command::FAILURE, $exitCode);
+        self::assertStringContainsString('intra-MR duplication', $display);
+    }
+
+    public function testPatchModeHidesClonesEntirelyInUnchangedCode(): void
+    {
+        $gitRoot = $this->tempDir . '/repo';
+        $srcDir = $gitRoot . '/src';
+        mkdir($srcDir, 0755, true);
+        file_put_contents($gitRoot . '/.git', '');
+
+        // Two pre-existing files that clone each other, plus an unrelated tiny patch.
+        $body = <<<'BODY'
+<?php
+function process(array $values): int {
+    $result = 0;
+    foreach ($values as $value) {
+        if ($value > 0) {
+            $result += $value;
+        }
+    }
+    return $result;
+}
+BODY;
+        file_put_contents($srcDir . '/Alpha.php', $body);
+        file_put_contents($srcDir . '/Beta.php', $body);
+
+        $patchFile = $this->tempDir . '/unrelated.patch';
+        $unrelatedFile = $srcDir . '/Note.php';
+        file_put_contents($unrelatedFile, "<?php\n// just a note\n");
+        file_put_contents($patchFile, <<<'PATCH'
+diff --git a/src/Note.php b/src/Note.php
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/Note.php
+@@ -0,0 +1,2 @@
++<?php
++// just a note
+PATCH);
+
+        $tester = new CommandTester(new DetectCommand($gitRoot));
+
+        $exitCode = $tester->execute([
+            'paths' => [$srcDir],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--patch' => $patchFile,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $exitCode);
+        self::assertStringContainsString('No code clones detected', $tester->getDisplay());
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function joinLines(array $lines): string
+    {
+        return implode("\n", $lines);
+    }
+
     public function testSkipsNonPhpFiles(): void
     {
         $mixedDir = $this->tempDir . '/mixed';
@@ -298,6 +486,52 @@ final class DetectCommandTest extends TestCase
         $tester->execute([
             'paths' => [$mixedDir],
             '--cache-dir' => $this->cacheDir,
+        ]);
+    }
+
+    public function testMinSequenceStmtsOptionEnablesAndConfiguresDetection(): void
+    {
+        $tester = $this->createTester();
+
+        $exitCode = $tester->execute([
+            'paths' => [self::FIXTURES],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--min-sequence-stmts' => '4',
+        ]);
+
+        self::assertSame(Command::FAILURE, $exitCode);
+    }
+
+    public function testMinSequenceStmtsZeroDisablesSequenceDetection(): void
+    {
+        $tester = $this->createTester();
+
+        $exitCode = $tester->execute([
+            'paths' => [self::FIXTURES],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--min-sequence-stmts' => '0',
+        ]);
+
+        // Calculator1+Calculator2 still contain whole-subtree clones,
+        // so the run still fails — but the sequence-detection path is
+        // exercised in the "disable" branch.
+        self::assertSame(Command::FAILURE, $exitCode);
+    }
+
+    public function testMinSequenceStmtsOneIsRejected(): void
+    {
+        $tester = $this->createTester();
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('--min-sequence-stmts must be 0 (disable) or at least 2');
+
+        $tester->execute([
+            'paths' => [self::FIXTURES],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--min-sequence-stmts' => '1',
         ]);
     }
 

@@ -4,6 +4,7 @@ namespace ShipMonk\CopyPasteDetector\Detection;
 
 use PhpParser\Node\Stmt;
 use ShipMonk\CopyPasteDetector\AST\Parser;
+use ShipMonk\CopyPasteDetector\AST\SiblingList;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
 use ShipMonk\CopyPasteDetector\AST\SubtreeExtractor;
 use ShipMonk\CopyPasteDetector\Cache\SubtreeCache;
@@ -14,6 +15,7 @@ use ShipMonk\CopyPasteDetector\Hashing\HashIndex;
 use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Output\OutputInterface;
+use function array_merge;
 use function array_push;
 use function count;
 use function max;
@@ -27,6 +29,9 @@ use function usort;
  * - Normalizes AST subtrees (anonymizes identifiers/literals)
  * - Computes MD5 fingerprints of normalized subtrees
  * - Groups subtrees by hash - identical hashes = Type-2 clones
+ *
+ * Additionally runs a sequence-clone pass over sibling-stmt lists to catch
+ * copy-pasted statement blocks that don't correspond to a single AST node.
  */
 final class CloneDetector
 {
@@ -34,6 +39,7 @@ final class CloneDetector
     private readonly Parser $parser;
     private readonly SubtreeExtractor $subtreeExtractor;
     private readonly SubsumptionFilter $subsumptionFilter;
+    private readonly ?SequenceCloneDetector $sequenceDetector;
     private ?OutputInterface $output = null;
 
     public function __construct(Config $config)
@@ -47,6 +53,9 @@ final class CloneDetector
         );
         $this->subtreeExtractor = new SubtreeExtractor(new SubtreeHasher($normalizer));
         $this->subsumptionFilter = new SubsumptionFilter();
+        $this->sequenceDetector = $config->isSequenceDetectionEnabled()
+            ? new SequenceCloneDetector($config->getSequenceMinStmts())
+            : null;
     }
 
     /**
@@ -56,6 +65,8 @@ final class CloneDetector
      * @param int $minNodeCount Minimum number of nodes for a subtree to be considered
      * @param OutputInterface|null $output Optional output interface for verbose logging
      * @param SubtreeCache|null $cache Optional cache for storing/retrieving subtrees
+     * @param ChangedLines|null $changedLines When provided, only clone groups containing ≥1 instance
+     *                                        inside the changed lines are reported.
      * @return list<CloneGroup> Array of detected clone groups (each containing 2+ identical subtrees)
      *
      * @throws ErrorException
@@ -65,17 +76,28 @@ final class CloneDetector
         int $minNodeCount,
         ?OutputInterface $output,
         ?SubtreeCache $cache,
+        ?ChangedLines $changedLines = null,
     ): array
     {
         $this->output = $output;
 
-        // Parse files and extract subtrees (with caching)
-        $allSubtrees = $this->parseAndExtractSubtrees($filePaths, $minNodeCount, $cache);
+        [$allSubtrees, $allSiblingLists] = $this->parseAndExtract($filePaths, $minNodeCount, $cache);
 
-        // Build hash index and create clone groups
         $hashIndex = $this->buildHashIndex($allSubtrees);
-
         $cloneGroups = $this->createCloneGroups($hashIndex);
+
+        if ($this->sequenceDetector !== null) {
+            $cloneGroups = array_merge(
+                $cloneGroups,
+                $this->sequenceDetector->detect($allSiblingLists, $minNodeCount),
+            );
+        }
+
+        // Patch filter must run before subsumption
+        if ($changedLines !== null) {
+            $cloneGroups = (new PatchFilter($changedLines))->filter($cloneGroups);
+        }
+
         $cloneGroups = $this->subsumptionFilter->filter($cloneGroups);
         $this->sortCloneGroups($cloneGroups);
 
@@ -83,37 +105,41 @@ final class CloneDetector
     }
 
     /**
-     * Parse files and extract subtrees with caching support
+     * Parse files and extract subtrees (with caching) plus sibling-stmt lists.
      *
      * @param list<string> $filePaths
-     * @return list<Subtree>
+     * @return array{0: list<Subtree>, 1: list<SiblingList>}
      *
      * @throws ErrorException
      */
-    private function parseAndExtractSubtrees(
+    private function parseAndExtract(
         array $filePaths,
         int $minNodeCount,
         ?SubtreeCache $cache,
     ): array
     {
         $allSubtrees = [];
+        $allSiblingLists = [];
         $totalFiles = count($filePaths);
 
         $progressBar = $this->createProgressBar($totalFiles);
 
         foreach ($filePaths as $filePath) {
-            // Try cache first
-            $cachedSubtrees = $cache?->get($filePath, $minNodeCount);
-            if ($cachedSubtrees !== null) {
-                array_push($allSubtrees, ...$cachedSubtrees);
+            $cached = $cache?->get($filePath, $minNodeCount);
+            if ($cached !== null) {
+                array_push($allSubtrees, ...$cached->getSubtrees());
+                array_push($allSiblingLists, ...$cached->getSiblingLists());
                 $progressBar?->advance();
                 continue;
             }
 
             $ast = $this->parseFile($filePath);
-            $subtrees = $this->subtreeExtractor->extract($ast, $filePath, $minNodeCount);
-            array_push($allSubtrees, ...$subtrees);
-            $cache?->set($filePath, $minNodeCount, $subtrees);
+            $result = $this->subtreeExtractor->extract($ast, $filePath, $minNodeCount);
+
+            array_push($allSubtrees, ...$result->getSubtrees());
+            array_push($allSiblingLists, ...$result->getSiblingLists());
+
+            $cache?->set($filePath, $minNodeCount, $result);
 
             $progressBar?->advance();
         }
@@ -125,7 +151,7 @@ final class CloneDetector
             }
         }
 
-        return $allSubtrees;
+        return [$allSubtrees, $allSiblingLists];
     }
 
     /**

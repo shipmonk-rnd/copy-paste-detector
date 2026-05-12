@@ -4,9 +4,11 @@ namespace ShipMonk\CopyPasteDetector\Reporting;
 
 use LogicException;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
+use ShipMonk\CopyPasteDetector\Detection\ChangedLines;
 use ShipMonk\CopyPasteDetector\Detection\CloneGroup;
 use function array_key_exists;
 use function array_map;
+use function array_merge;
 use function array_slice;
 use function array_values;
 use function count;
@@ -41,6 +43,7 @@ final class TextReporter
         private readonly SyntaxHighlighter $highlighter,
         private readonly LineDiffer $lineDiffer,
         private readonly ?string $editorUrl = null,
+        private readonly ?ChangedLines $changedLines = null,
     )
     {
         $cwd = getcwd();
@@ -151,7 +154,7 @@ final class TextReporter
         int $index,
     ): string
     {
-        $subtrees = $group->getSubtrees();
+        [$subtrees, $changedCount] = $this->orderSubtreesForReport($group);
         $instanceCount = $group->getInstanceCount();
         $nodeCount = $group->getNodeCount();
 
@@ -174,6 +177,13 @@ final class TextReporter
             $instanceCount,
         );
 
+        if ($this->changedLines !== null) {
+            $existingCount = $instanceCount - $changedCount;
+            $statusLine .= $existingCount === 0
+                ? ' · intra-MR duplication'
+                : sprintf(' · %d new ↔ %d existing', $changedCount, $existingCount);
+        }
+
         if ($isExactMatch) {
             $statusLine .= ' · exact match';
         }
@@ -195,6 +205,34 @@ final class TextReporter
         $output[] = $this->renderUnifiedCode($subtrees, $allInstanceLines, $diffRangesPerInstance, $lineNumberWidth);
 
         return implode("\n", $output);
+    }
+
+    /**
+     * In patch mode, list changed instances first (so the unified view uses them as the line-number
+     * reference) and report how many were changed; otherwise preserve the group's original order.
+     *
+     * @return array{list<Subtree>, int} ordered subtrees, count of changed-side instances
+     */
+    private function orderSubtreesForReport(CloneGroup $group): array
+    {
+        $subtrees = $group->getSubtrees();
+
+        if ($this->changedLines === null) {
+            return [$subtrees, 0];
+        }
+
+        $changed = [];
+        $unchanged = [];
+
+        foreach ($subtrees as $subtree) {
+            if ($this->changedLines->containsRange($subtree->getFilePath(), $subtree->getStartLine(), $subtree->getEndLine())) {
+                $changed[] = $subtree;
+            } else {
+                $unchanged[] = $subtree;
+            }
+        }
+
+        return [array_merge($changed, $unchanged), count($changed)];
     }
 
     /**
