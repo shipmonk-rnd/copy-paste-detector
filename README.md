@@ -42,6 +42,11 @@ vendor/bin/copy-paste-detector src/
   - Requires `sebastian/diff` to be installed.
 
 
+- `--ansi` / `--no-ansi`
+  - Force enable or disable ANSI color output
+  - By default, colors are auto-detected based on the terminal
+
+
 ## Check if MR copied code from elsewhere
 
 ```bash
