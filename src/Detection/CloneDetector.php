@@ -14,9 +14,11 @@ use ShipMonk\CopyPasteDetector\Hashing\HashIndex;
 use ShipMonk\CopyPasteDetector\Hashing\SubtreeHasher;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Output\StreamOutput;
 use function array_push;
 use function count;
 use function max;
+use function stream_isatty;
 use function usort;
 
 /**
@@ -159,18 +161,21 @@ final class CloneDetector
         }
 
         $progressBar = new ProgressBar($this->output, $max);
-        $progressBar->setRedrawFrequency(max(1, (int) ($max / 50)));
-        $progressBar->minSecondsBetweenRedraws(0.1);
-        $progressBar->maxSecondsBetweenRedraws(1.0);
 
-        // Percentage Fill style - clean visual percentage
+        // Animate in place only on a TTY. --ansi forces "decorated" output even in
+        // CI, but the in-place redraw escape sequences aren't collapsed by CI log
+        // viewers, leaving every frame stacked. Off a TTY, redraw on its own line.
+        $interactive = $this->outputIsInteractive();
+        $progressBar->setOverwrite($interactive);
+        $progressBar->setRedrawFrequency(max(1, (int) ($max / ($interactive ? 50 : 10))));
+        $progressBar->minSecondsBetweenRedraws($interactive ? 0.1 : 1.0);
+        $progressBar->maxSecondsBetweenRedraws($interactive ? 1.0 : 10.0);
+
         if ($this->output->isDebug() || $this->output->isVeryVerbose()) {
-            // Detailed format with ETA and memory
             $progressBar->setFormat(
                 ' %current%/%max% %bar% %percent:3s%% %remaining:-10s% %memory:6s%',
             );
         } else {
-            // Simpler format
             $progressBar->setFormat(
                 ' %current%/%max% %bar% %percent:3s%% %remaining:-10s%',
             );
@@ -184,6 +189,17 @@ final class CloneDetector
         $progressBar->start();
 
         return $progressBar;
+    }
+
+    private function outputIsInteractive(): bool
+    {
+        $output = $this->output;
+
+        if ($output instanceof StreamOutput) {
+            return stream_isatty($output->getStream());
+        }
+
+        return false;
     }
 
     /**
