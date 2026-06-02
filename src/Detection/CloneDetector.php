@@ -162,28 +162,20 @@ final class CloneDetector
 
         $progressBar = new ProgressBar($this->output, $max);
 
-        // Symfony animates the bar in place whenever the output is "decorated",
-        // which --ansi forces on regardless of whether a real terminal is attached.
-        // The in-place redraw relies on cursor-control escape sequences that CI log
-        // viewers (e.g. GitLab) do not collapse, so every redraw frame ends up
-        // stacked in the log. Only animate in place on an interactive terminal;
-        // otherwise emit one line per redraw (like PHPStan), which stays readable in
-        // CI while keeping colors intact. Non-interactive output redraws far less
-        // frequently so the log stays compact.
+        // Animate in place only on a TTY. --ansi forces "decorated" output even in
+        // CI, but the in-place redraw escape sequences aren't collapsed by CI log
+        // viewers, leaving every frame stacked. Off a TTY, redraw on its own line.
         $interactive = $this->outputIsInteractive();
         $progressBar->setOverwrite($interactive);
         $progressBar->setRedrawFrequency(max(1, (int) ($max / ($interactive ? 50 : 10))));
         $progressBar->minSecondsBetweenRedraws($interactive ? 0.1 : 1.0);
         $progressBar->maxSecondsBetweenRedraws($interactive ? 1.0 : 10.0);
 
-        // Percentage Fill style - clean visual percentage
         if ($this->output->isDebug() || $this->output->isVeryVerbose()) {
-            // Detailed format with ETA and memory
             $progressBar->setFormat(
                 ' %current%/%max% %bar% %percent:3s%% %remaining:-10s% %memory:6s%',
             );
         } else {
-            // Simpler format
             $progressBar->setFormat(
                 ' %current%/%max% %bar% %percent:3s%% %remaining:-10s%',
             );
@@ -199,10 +191,6 @@ final class CloneDetector
         return $progressBar;
     }
 
-    /**
-     * Whether the progress output is attached to a real interactive terminal.
-     * Used to decide between in-place animation (TTY) and one-line-per-redraw (CI/pipes).
-     */
     private function outputIsInteractive(): bool
     {
         $output = $this->output;
