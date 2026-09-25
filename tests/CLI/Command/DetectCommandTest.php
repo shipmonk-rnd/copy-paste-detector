@@ -16,6 +16,7 @@ use function implode;
 use function mkdir;
 use function rtrim;
 use function sprintf;
+use function symlink;
 use function sys_get_temp_dir;
 use function uniqid;
 use function var_export;
@@ -289,6 +290,88 @@ final class DetectCommandTest extends TestCase
 
     public function testPatchModeReportsOnlyClonesTouchingChangedLines(): void
     {
+        $gitRoot = $this->createRepoWithNewCalcPatch();
+
+        $tester = new CommandTester(new DetectCommand($gitRoot));
+
+        $exitCode = $tester->execute([
+            'paths' => [$gitRoot . '/src'],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--patch' => $this->tempDir . '/changes.patch',
+        ]);
+
+        $display = $tester->getDisplay();
+
+        self::assertSame(Command::FAILURE, $exitCode);
+        self::assertStringContainsString('Patch:', $display);
+        self::assertStringContainsString('NewCalc.php', $display);
+        self::assertStringContainsString('Existing.php', $display);
+        self::assertStringContainsString('new ↔', $display);
+    }
+
+    public function testPatchModeMatchesRelativePathArgument(): void
+    {
+        $gitRoot = $this->createRepoWithNewCalcPatch();
+
+        $tester = new CommandTester(new DetectCommand($gitRoot));
+
+        $exitCode = $tester->execute([
+            'paths' => ['src'],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--patch' => $this->tempDir . '/changes.patch',
+        ]);
+
+        self::assertSame(Command::FAILURE, $exitCode);
+        self::assertStringContainsString('new ↔', $tester->getDisplay());
+    }
+
+    public function testPatchModeMatchesPathThroughSymlink(): void
+    {
+        $gitRoot = $this->createRepoWithNewCalcPatch();
+        $link = $this->tempDir . '/src-link';
+        symlink($gitRoot . '/src', $link);
+
+        $tester = new CommandTester(new DetectCommand($gitRoot));
+
+        $exitCode = $tester->execute([
+            'paths' => [$link],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+            '--patch' => $this->tempDir . '/changes.patch',
+        ]);
+
+        self::assertSame(Command::FAILURE, $exitCode);
+        self::assertStringContainsString('new ↔', $tester->getDisplay());
+    }
+
+    public function testOverlappingPathsDoNotReportFileAsCloneOfItself(): void
+    {
+        $singleFileDir = $this->tempDir . '/single';
+        mkdir($singleFileDir);
+        file_put_contents($singleFileDir . '/Only.php', '<?php class Only { public function a(array $x): int { return count($x) + 1; } }');
+
+        $tester = $this->createTester();
+
+        $exitCode = $tester->execute([
+            'paths' => ['single', './single', $singleFileDir, $singleFileDir . '/../single/Only.php'],
+            '--min-node-count' => '10',
+            '--cache-dir' => $this->cacheDir,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $exitCode);
+        self::assertStringContainsString('No code clones detected', $tester->getDisplay());
+    }
+
+    /**
+     * Creates a fake git repo with pre-existing src/Existing.php and new src/NewCalc.php that clones it,
+     * plus {tempDir}/changes.patch adding NewCalc.php in full.
+     *
+     * @return string git root
+     */
+    private function createRepoWithNewCalcPatch(): string
+    {
         $gitRoot = $this->tempDir . '/repo';
         $srcDir = $gitRoot . '/src';
         mkdir($srcDir, 0755, true);
@@ -310,15 +393,13 @@ BODY;
         file_put_contents($srcDir . '/Existing.php', $existing);
         file_put_contents($srcDir . '/NewCalc.php', $newCalc);
 
-        // Build a patch that adds NewCalc.php in full (so every line of the file is a changed line).
         $patchLines = [];
         foreach (explode("\n", rtrim($newCalc, "\n")) as $line) {
             $patchLines[] = '+' . $line;
         }
         $hunkCount = count($patchLines);
 
-        $patchFile = $this->tempDir . '/changes.patch';
-        file_put_contents($patchFile, <<<PATCH
+        file_put_contents($this->tempDir . '/changes.patch', <<<PATCH
 diff --git a/src/NewCalc.php b/src/NewCalc.php
 new file mode 100644
 index 0000000..1111111
@@ -328,22 +409,7 @@ index 0000000..1111111
 {$this->joinLines($patchLines)}
 PATCH);
 
-        $tester = new CommandTester(new DetectCommand($gitRoot));
-
-        $exitCode = $tester->execute([
-            'paths' => [$srcDir],
-            '--min-node-count' => '10',
-            '--cache-dir' => $this->cacheDir,
-            '--patch' => $patchFile,
-        ]);
-
-        $display = $tester->getDisplay();
-
-        self::assertSame(Command::FAILURE, $exitCode);
-        self::assertStringContainsString('Patch:', $display);
-        self::assertStringContainsString('NewCalc.php', $display);
-        self::assertStringContainsString('Existing.php', $display);
-        self::assertStringContainsString('new ↔', $display);
+        return $gitRoot;
     }
 
     public function testPatchModeReportsIntraMrDuplication(): void

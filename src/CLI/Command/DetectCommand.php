@@ -255,16 +255,10 @@ HELP,);
         $realExcludePaths = [];
 
         foreach ($config->getExcludePaths() as $excludePath) {
-            $originalPath = $excludePath;
-
-            if (!str_starts_with($excludePath, '/')) {
-                $excludePath = $this->cwd . '/' . $excludePath;
-            }
-
-            $resolved = realpath($excludePath);
+            $resolved = realpath($this->absolutizePath($excludePath));
 
             if ($resolved === false) {
-                throw new ErrorException("Exclude path does not exist: {$originalPath}");
+                throw new ErrorException("Exclude path does not exist: {$excludePath}");
             }
 
             $realExcludePaths[] = $resolved;
@@ -349,13 +343,19 @@ HELP,);
             throw new ErrorException('No paths specified. Provide paths as arguments or configure them in the config file.');
         }
 
+        $absolutePaths = [];
+
         foreach ($paths as $path) {
-            if (!file_exists($path)) {
+            $absolutePath = $this->absolutizePath($path);
+
+            if (!file_exists($absolutePath)) {
                 throw new ErrorException("Path does not exist: {$path}");
             }
+
+            $absolutePaths[] = $absolutePath;
         }
 
-        return [$paths, $usingDefault, $overriddenConfigPaths];
+        return [$absolutePaths, $usingDefault, $overriddenConfigPaths];
     }
 
     /**
@@ -497,8 +497,11 @@ HELP,);
 
         foreach ($paths as $path) {
             foreach ($this->collectPhpFiles($path) as $file) {
-                if (!$this->isExcluded($file, $realExcludePaths)) {
-                    $allFiles[$file] = true;
+                // Real paths dedupe overlapping scan paths and match the keys of patch ChangedLines
+                $realFile = $this->resolveRealpath($file, "File path '$file' does not exist, should not happen");
+
+                if (!$this->isExcluded($realFile, $realExcludePaths)) {
+                    $allFiles[$realFile] = true;
                 }
             }
         }
@@ -510,16 +513,12 @@ HELP,);
      * Check if a file path should be excluded
      *
      * @param list<string> $realExcludePaths
-     *
-     * @throws ErrorException
      */
     private function isExcluded(
-        string $filePath,
+        string $realFilePath,
         array $realExcludePaths,
     ): bool
     {
-        $realFilePath = $this->resolveRealpath($filePath, "File path '$filePath' does not exist, should not happen");
-
         foreach ($realExcludePaths as $realExcludePath) {
             if ($realFilePath === $realExcludePath) {
                 return true;
@@ -574,6 +573,11 @@ HELP,);
     private function isPhpFile(string $path): bool
     {
         return pathinfo($path, PATHINFO_EXTENSION) === 'php';
+    }
+
+    private function absolutizePath(string $path): string
+    {
+        return str_starts_with($path, '/') ? $path : $this->cwd . '/' . $path;
     }
 
     private function relativizePath(string $path): string
