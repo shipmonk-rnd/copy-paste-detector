@@ -10,6 +10,8 @@ use PhpParser\Node\Scalar\DNumber;
 use PhpParser\Node\Scalar\LNumber;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\NodeVisitorAbstract;
+use function count;
+use function is_string;
 
 /**
  * Visitor that normalizes AST nodes by anonymizing identifiers and literals
@@ -18,7 +20,11 @@ use PhpParser\NodeVisitorAbstract;
 final class NormalizingVisitor extends NodeVisitorAbstract
 {
 
-    private int $varCounter = 0;
+    /**
+     * @var array<string, string>
+     */
+    private array $variableAliases = [];
+
     private int $literalCounter = 0;
     private int $nameCounter = 0;
     private int $identifierCounter = 0;
@@ -34,10 +40,9 @@ final class NormalizingVisitor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node): ?Node
     {
-        // Anonymize variable names
-        if ($this->anonymizeVariables && $node instanceof Variable) {
-            // Replace variable name with V<counter>
-            $node->name = 'V' . $this->varCounter++;
+        // A variable-variable keeps its name expression; variables inside it are anonymized on their own
+        if ($this->anonymizeVariables && $node instanceof Variable && is_string($node->name)) {
+            $node->name = $this->variableAliases[$node->name] ??= 'V' . count($this->variableAliases);
             return $node;
         }
 
