@@ -227,6 +227,8 @@ HELP,);
 
     /**
      * @return array{int, bool, bool} [minNodeCount, usingDefault, cliOverride]
+     *
+     * @throws ErrorException
      */
     private function resolveMinNodeCount(
         InputInterface $input,
@@ -234,13 +236,31 @@ HELP,);
     ): array
     {
         $minNodeCountOption = $input->getOption('min-node-count');
-        $cliMinNodeCount = $minNodeCountOption !== null ? (int) $minNodeCountOption : null; // @phpstan-ignore cast.int
+        $cliMinNodeCount = $minNodeCountOption !== null ? $this->parseMinNodeCount($minNodeCountOption) : null;
 
         $configMinNodeCount = $config->getMinNodeCount();
         $usingDefault = $cliMinNodeCount === null && $configMinNodeCount === null;
         $cliOverride = $cliMinNodeCount !== null && $configMinNodeCount !== null;
 
         return [$cliMinNodeCount ?? $configMinNodeCount ?? 50, $usingDefault, $cliOverride];
+    }
+
+    /**
+     * @throws ErrorException
+     */
+    private function parseMinNodeCount(mixed $value): int
+    {
+        if (!is_string($value)) {
+            throw new LogicException('Min node count option must be a string or null');
+        }
+
+        $minNodeCount = (int) $value;
+
+        if ((string) $minNodeCount !== $value || $minNodeCount < 1) {
+            throw new ErrorException("Option --min-node-count must be a positive integer, '{$value}' given");
+        }
+
+        return $minNodeCount;
     }
 
     /**
