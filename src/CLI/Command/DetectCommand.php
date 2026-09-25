@@ -449,7 +449,7 @@ HELP,);
         ?ChangedLines $changedLines,
     ): array
     {
-        $cache = new SubtreeCache($cacheDir, $config->getAnonymizationSettings());
+        $cache = new SubtreeCache($cacheDir, $config->getAnonymizationSettings(), SubtreeCache::detectVersion());
         $detector = new CloneDetector($config);
 
         return $detector->detect(
