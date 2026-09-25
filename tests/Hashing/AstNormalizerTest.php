@@ -54,6 +54,34 @@ final class AstNormalizerTest extends TestCase
         self::assertSame($hash1, $hash2);
     }
 
+    public function testAnonymizeVariablesKeepsRepeatedVariableDistinctFromDifferentVariables(): void
+    {
+        self::assertNotSame(
+            $this->hashWithVariableAnonymization('<?php $a = $a + 1;'),
+            $this->hashWithVariableAnonymization('<?php $a = $b + 1;'),
+        );
+    }
+
+    public function testAnonymizeVariablesProducesSameHashForConsistentlyRenamedVariables(): void
+    {
+        self::assertSame(
+            $this->hashWithVariableAnonymization('<?php $a = $a + $b;'),
+            $this->hashWithVariableAnonymization('<?php $x = $x + $y;'),
+        );
+    }
+
+    public function testAnonymizeVariablesKeepsVariableVariableStructure(): void
+    {
+        self::assertNotSame(
+            $this->hashWithVariableAnonymization('<?php $$a = 1;'),
+            $this->hashWithVariableAnonymization('<?php ${$a . $b} = 1;'),
+        );
+        self::assertSame(
+            $this->hashWithVariableAnonymization('<?php $$a = $a;'),
+            $this->hashWithVariableAnonymization('<?php $$x = $x;'),
+        );
+    }
+
     public function testNoAnonymizeVariablesProducesDifferentHashForDifferentVarNames(): void
     {
         $code1 = '<?php $foo = 1;';
@@ -338,6 +366,21 @@ final class AstNormalizerTest extends TestCase
         $hash2 = $hasher->hashNode($ast2[0]);
 
         self::assertSame($hash1, $hash2);
+    }
+
+    private function hashWithVariableAnonymization(string $code): string
+    {
+        $normalizer = new AstNormalizer(
+            anonymizeVariables: true,
+            anonymizeLiterals: false,
+            anonymizeNames: false,
+            anonymizeIdentifiers: false,
+        );
+
+        $ast = $this->parser->parse($code);
+        self::assertArrayHasKey(0, $ast);
+
+        return (new SubtreeHasher($normalizer))->hashNode($ast[0]);
     }
 
 }
