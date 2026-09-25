@@ -2,6 +2,7 @@
 
 namespace ShipMonk\CopyPasteDetectorTests\CLI\Command;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ShipMonk\CopyPasteDetector\CLI\Command\DetectCommand;
 use ShipMonk\CopyPasteDetector\Exception\ErrorException;
@@ -130,6 +131,34 @@ final class DetectCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $exitCode);
         self::assertStringContainsString('≥9999 nodes', $tester->getDisplay());
+    }
+
+    #[DataProvider('provideInvalidMinNodeCount')]
+    public function testThrowsWhenMinNodeCountIsNotPositiveInteger(string $minNodeCount): void
+    {
+        $tester = $this->createTester();
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage("Option --min-node-count must be a positive integer, '{$minNodeCount}' given");
+
+        $tester->execute([
+            'paths' => [self::FIXTURES],
+            '--min-node-count' => $minNodeCount,
+            '--cache-dir' => $this->cacheDir,
+        ]);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function provideInvalidMinNodeCount(): iterable
+    {
+        yield 'non-numeric' => ['abc'];
+        yield 'zero' => ['0'];
+        yield 'negative' => ['-5'];
+        yield 'float' => ['1.5'];
+        yield 'numeric prefix' => ['10abc'];
+        yield 'empty' => [''];
     }
 
     public function testLoadsExplicitConfigFile(): void
