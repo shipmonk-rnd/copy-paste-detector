@@ -109,6 +109,26 @@ final class SubsumptionFilterTest extends TestCase
         ]);
     }
 
+    public function testGroupCoveredByDifferentLargerGroupsIsRetained(): void
+    {
+        // Sum1=Sum2 and Report1=Report2 are two unrelated whole-function clones.
+        // Both functions contain the same foreach. Each foreach instance lies inside
+        // one of the two function clones, but no single function clone covers all four,
+        // so the foreach group is the only one showing that Sum and Report share code.
+        $cloneGroups = $this->detect([
+            __DIR__ . '/../_fixtures/subsumption/crossgroup/Sum1.php',
+            __DIR__ . '/../_fixtures/subsumption/crossgroup/Sum2.php',
+            __DIR__ . '/../_fixtures/subsumption/crossgroup/Report1.php',
+            __DIR__ . '/../_fixtures/subsumption/crossgroup/Report2.php',
+        ], minNodeCount: 15);
+
+        self::assertGroupRanges($cloneGroups, [
+            ['Report1.php:2-13', 'Report2.php:2-13'],
+            ['Sum1.php:2-12', 'Sum2.php:2-12'],
+            ['Report1.php:5-11', 'Report2.php:5-11', 'Sum1.php:4-10', 'Sum2.php:4-10'],
+        ]);
+    }
+
     /**
      * Assert that clone groups match the expected line ranges exactly.
      *
