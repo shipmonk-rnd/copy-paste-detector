@@ -255,13 +255,7 @@ HELP,);
         $realExcludePaths = [];
 
         foreach ($config->getExcludePaths() as $excludePath) {
-            $resolved = realpath($this->absolutizePath($excludePath));
-
-            if ($resolved === false) {
-                throw new ErrorException("Exclude path does not exist: {$excludePath}");
-            }
-
-            $realExcludePaths[] = $resolved;
+            $realExcludePaths[] = $this->resolveRealpath($this->absolutizePath($excludePath), "Exclude path does not exist: {$excludePath}");
         }
 
         return $realExcludePaths;
