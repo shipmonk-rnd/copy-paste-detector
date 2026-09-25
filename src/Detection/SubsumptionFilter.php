@@ -2,15 +2,19 @@
 
 namespace ShipMonk\CopyPasteDetector\Detection;
 
+use function array_intersect_key;
+use function count;
 use function usort;
 
 /**
  * Drops clone groups whose every instance is fully contained inside an instance
- * of some strictly larger surviving group (so e.g. inner statements of a foreach
+ * of one strictly larger surviving group (so e.g. inner statements of a foreach
  * are not reported separately when the whole foreach is already reported).
  *
- * A group survives if at least one of its instances is NOT covered by any
- * surviving larger group — i.e. partially subsumed groups are retained.
+ * All instances must be covered by the same larger group. When different larger
+ * groups cover different instances, the smaller group is the only one that shows
+ * the clone relation between those instances, so it survives. Partially subsumed
+ * groups are retained too.
  */
 final class SubsumptionFilter
 {
@@ -23,16 +27,18 @@ final class SubsumptionFilter
     {
         usort($cloneGroups, static fn (CloneGroup $a, CloneGroup $b): int => $b->getNodeCount() <=> $a->getNodeCount());
 
-        /** @var array<string, list<array{startLine: int, endLine: int, nodeCount: int}>> $survivingByFile */
+        /** @var array<string, list<array{startLine: int, endLine: int, nodeCount: int, survivorIndex: int}>> $survivingByFile */
         $survivingByFile = [];
         $survivors = [];
 
         foreach ($cloneGroups as $group) {
             $groupNodeCount = $group->getNodeCount();
-            $allSubsumed = true;
+
+            /** @var array<int, true>|null $commonCoveringSurvivors */
+            $commonCoveringSurvivors = null;
 
             foreach ($group->getSubtrees() as $subtree) {
-                $covered = false;
+                $coveringSurvivors = [];
 
                 foreach ($survivingByFile[$subtree->getFilePath()] ?? [] as $range) {
                     if (
@@ -40,21 +46,24 @@ final class SubsumptionFilter
                         && $range['startLine'] <= $subtree->getStartLine()
                         && $range['endLine'] >= $subtree->getEndLine()
                     ) {
-                        $covered = true;
-                        break;
+                        $coveringSurvivors[$range['survivorIndex']] = true;
                     }
                 }
 
-                if (!$covered) {
-                    $allSubsumed = false;
+                $commonCoveringSurvivors = $commonCoveringSurvivors === null
+                    ? $coveringSurvivors
+                    : array_intersect_key($commonCoveringSurvivors, $coveringSurvivors);
+
+                if ($commonCoveringSurvivors === []) {
                     break;
                 }
             }
 
-            if ($allSubsumed) {
+            if ($commonCoveringSurvivors !== []) {
                 continue;
             }
 
+            $survivorIndex = count($survivors);
             $survivors[] = $group;
 
             foreach ($group->getSubtrees() as $subtree) {
@@ -62,6 +71,7 @@ final class SubsumptionFilter
                     'startLine' => $subtree->getStartLine(),
                     'endLine' => $subtree->getEndLine(),
                     'nodeCount' => $groupNodeCount,
+                    'survivorIndex' => $survivorIndex,
                 ];
             }
         }
