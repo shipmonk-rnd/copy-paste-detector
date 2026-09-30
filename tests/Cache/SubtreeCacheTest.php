@@ -38,14 +38,14 @@ final class SubtreeCacheTest extends TestCase
     {
         self::assertDirectoryDoesNotExist($this->cacheDir);
 
-        new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
+        new SubtreeCache($this->cacheDir, $this->createDefaultSettings(), 'v1');
 
         self::assertDirectoryExists($this->cacheDir);
     }
 
     public function testGetReturnsNullForNonExistentFile(): void
     {
-        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings(), 'v1');
 
         $result = $cache->get('/nonexistent/file.php', 10);
 
@@ -54,7 +54,7 @@ final class SubtreeCacheTest extends TestCase
 
     public function testGetReturnsNullWhenNoCacheExists(): void
     {
-        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings(), 'v1');
         $file = $this->createTempFile('<?php $x = 1;');
 
         $result = $cache->get($file, 10);
@@ -64,7 +64,7 @@ final class SubtreeCacheTest extends TestCase
 
     public function testSetAndGetRoundTrip(): void
     {
-        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings(), 'v1');
         $file = $this->createTempFile('<?php
             function calculate($a, $b) {
                 $result = $a + $b;
@@ -98,7 +98,7 @@ final class SubtreeCacheTest extends TestCase
 
     public function testCacheInvalidatedWhenFileChanges(): void
     {
-        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings(), 'v1');
         $file = $this->createTempFile('<?php $x = 1;');
 
         $parser = new Parser();
@@ -121,7 +121,7 @@ final class SubtreeCacheTest extends TestCase
 
     public function testDifferentMinNodeCountUsesSeparateCache(): void
     {
-        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings(), 'v1');
         $file = $this->createTempFile('<?php
             function foo($x) {
                 $y = $x + 1;
@@ -170,7 +170,7 @@ final class SubtreeCacheTest extends TestCase
             names: false,
             identifiers: false,
         );
-        $cache1 = new SubtreeCache($this->cacheDir, $settings1);
+        $cache1 = new SubtreeCache($this->cacheDir, $settings1, 'v1');
         $cache1->set($file, 5, $subtrees);
 
         // Verify cache hit with same settings
@@ -183,13 +183,41 @@ final class SubtreeCacheTest extends TestCase
             names: false,
             identifiers: false,
         );
-        $cache2 = new SubtreeCache($this->cacheDir, $settings2);
+        $cache2 = new SubtreeCache($this->cacheDir, $settings2, 'v1');
         self::assertNull($cache2->get($file, 5));
+    }
+
+    public function testDifferentVersionUsesSeparateCache(): void
+    {
+        $file = $this->createTempFile('<?php
+            function foo($x) {
+                $y = $x + 1;
+                return $y * 2;
+            }
+        ');
+
+        $ast = (new Parser())->parseFile($file);
+        $subtrees = $this->createSubtreeExtractor()->extract($ast, $file, minNodeCount: 5);
+
+        $oldCache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings(), 'v1');
+        $oldCache->set($file, 5, $subtrees);
+        self::assertNotNull($oldCache->get($file, 5));
+
+        $upgradedCache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings(), 'v2');
+        self::assertNull($upgradedCache->get($file, 5));
+    }
+
+    public function testDetectVersionContainsHashingPackages(): void
+    {
+        self::assertMatchesRegularExpression(
+            '~^shipmonk/copy-paste-detector@[^,]+#[^,]+,nikic/php-parser@v\d[^,]*#[0-9a-f]{40}$~',
+            SubtreeCache::detectVersion(),
+        );
     }
 
     public function testSetIgnoresNonExistentFile(): void
     {
-        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings());
+        $cache = new SubtreeCache($this->cacheDir, $this->createDefaultSettings(), 'v1');
 
         // Should not throw, just silently ignore
         $cache->set('/nonexistent/file.php', 10, []);

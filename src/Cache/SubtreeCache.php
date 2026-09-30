@@ -2,6 +2,7 @@
 
 namespace ShipMonk\CopyPasteDetector\Cache;
 
+use Composer\InstalledVersions;
 use JsonException;
 use LogicException;
 use ShipMonk\CopyPasteDetector\AST\Subtree;
@@ -10,6 +11,7 @@ use function array_map;
 use function file_exists;
 use function file_get_contents;
 use function file_put_contents;
+use function implode;
 use function is_array;
 use function is_dir;
 use function is_int;
@@ -28,22 +30,51 @@ use const JSON_THROW_ON_ERROR;
 final class SubtreeCache
 {
 
+    private const VERSIONED_PACKAGES = [
+        'shipmonk/copy-paste-detector',
+        'nikic/php-parser',
+    ];
+
     private string $cacheDir;
     private AnonymizationSettings $anonymizationSettings;
+    private string $version;
 
     public function __construct(
         string $cacheDir,
         AnonymizationSettings $anonymizationSettings,
+        string $version,
     )
     {
         $this->cacheDir = $cacheDir;
         $this->anonymizationSettings = $anonymizationSettings;
+        $this->version = $version;
 
         if (!is_dir($this->cacheDir)) {
             if (!mkdir($this->cacheDir, 0755, true) && !is_dir($this->cacheDir)) {
                 throw new LogicException("Failed to create cache directory '{$this->cacheDir}'");
             }
         }
+    }
+
+    /**
+     * Versions of packages that affect subtree hashes; an upgrade of any of them must invalidate the cache.
+     */
+    public static function detectVersion(): string
+    {
+        $parts = [];
+
+        foreach (self::VERSIONED_PACKAGES as $package) {
+            if (!InstalledVersions::isInstalled($package)) {
+                $parts[] = $package . '@none';
+                continue;
+            }
+
+            $prettyVersion = InstalledVersions::getPrettyVersion($package) ?? 'unknown';
+            $reference = InstalledVersions::getReference($package) ?? 'unknown';
+            $parts[] = "{$package}@{$prettyVersion}#{$reference}";
+        }
+
+        return implode(',', $parts);
     }
 
     /**
@@ -191,6 +222,7 @@ final class SubtreeCache
         $settings = $this->anonymizationSettings;
 
         $key = md5(serialize([
+            'version' => $this->version,
             'file' => $filePath,
             'minNodeCount' => $minNodeCount,
             'anonymizeVariables' => $settings->variables,
